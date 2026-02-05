@@ -14,9 +14,15 @@
     <meta name="apple-mobile-web-app-title" content="Gym Ecosystem">
     <link rel="apple-touch-icon" href="/logo.png">
 
-    <!-- Fonts & Icons -->
+    <!-- Preload Critical Assets -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" as="style"
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800;900&display=swap">
+    <link rel="preload" as="style"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-25..0">
+
+    <!-- Fonts & Icons -->
     <link
         href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800;900&display=swap"
         rel="stylesheet" />
@@ -29,6 +35,35 @@
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
 
+    <!-- Font loading performance -->
+    <script>
+        document.documentElement.classList.add('loading');
+        if ('fonts' in document) {
+            Promise.all([
+                document.fonts.load('1em Space Grotesk'),
+                document.fonts.load('1em Material Symbols Outlined')
+            ]).then(() => {
+                document.body.classList.add('font-loaded');
+                document.documentElement.classList.remove('loading');
+            });
+        } else {
+            document.body.classList.add('font-loaded');
+        }
+    </script>
+    <style>
+        .loading body {
+            opacity: 0;
+        }
+
+        body {
+            transition: opacity 0.5s ease-in;
+            opacity: 1;
+        }
+
+        .font-loaded .material-symbols-outlined {
+            color: inherit !important;
+        }
+    </style>
     <!-- Register Service Worker -->
     <script>
         if ('serviceWorker' in navigator) {

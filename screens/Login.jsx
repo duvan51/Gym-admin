@@ -20,7 +20,7 @@ const Login = () => {
             icon: 'fitness_center',
             color: 'primary',
             path: '/onboarding-1',
-            image: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=1470&auto=format&fit=crop'
+            image: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=60&w=800&auto=format&fit=crop'
         },
         {
             id: 'admin',
@@ -30,7 +30,7 @@ const Login = () => {
             icon: 'dashboard',
             color: 'primary-blue',
             path: '/admin',
-            image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=1470&auto=format&fit=crop'
+            image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=60&w=800&auto=format&fit=crop'
         },
         {
             id: 'saas',
@@ -40,7 +40,7 @@ const Login = () => {
             icon: 'admin_panel_settings',
             color: 'slate-400',
             path: '/superadmin',
-            image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=1426&auto=format&fit=crop'
+            image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=60&w=800&auto=format&fit=crop'
         }
     ];
 

@@ -35,7 +35,7 @@ const getAI = (area = 'workout') => {
 /**
  * Helper to retry AI calls with exponential backoff on 429 errors
  */
-const withRetry = async (fn, maxRetries = 5) => {
+const withRetry = async (fn, maxRetries = 3) => {
   let lastError;
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -44,8 +44,8 @@ const withRetry = async (fn, maxRetries = 5) => {
       lastError = error;
       const isRateLimit = error.message?.includes('429') || error.status === 429 || error.code === 429;
       if (isRateLimit && i < maxRetries - 1) {
-        // More aggressive backoff for free tier: 5s, 10s, 20s, 40s... + jitter
-        const delay = Math.pow(2, i) * 5000 + (Math.random() * 1000); 
+        // Reduced backoff for better UX: 2s, 4s, 8s
+        const delay = Math.pow(2, i) * 2000 + (Math.random() * 500); 
         console.warn(`Gemini Rate Limit (429). Retrying in ${Math.round(delay)}ms... (Attempt ${i + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
