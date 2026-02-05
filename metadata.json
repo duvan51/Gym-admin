@@ -1,0 +1,8 @@
+
+{
+  "name": "Desarrollando Ando - Gym Ecosystem",
+  "description": "Un ecosistema de gestión de gimnasios y entrenamiento personalizado de alto rendimiento con IA, seguimiento en tiempo real y analíticas administrativas.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

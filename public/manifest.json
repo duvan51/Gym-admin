@@ -1,0 +1,17 @@
+{
+    "name": "Gym Ecosystem",
+    "short_name": "GymEcos",
+    "description": "Tu centro de entrenamiento y nutrición inteligente con IA.",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0a0a0a",
+    "theme_color": "#0df259",
+    "icons": [
+        {
+            "src": "/logo.png",
+            "sizes": "1024x1024",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
