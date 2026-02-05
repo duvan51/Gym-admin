@@ -1,14 +1,13 @@
-/* Base Tailwind directives */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Base Tailwind v4 */
+@import "tailwindcss";
+@config "./tailwind.config.js";
 
 /* Custom base styles */
 @layer base {
   body {
     font-family: 'Space Grotesk', 'Inter', sans-serif;
   }
-  
+
   * {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -50,6 +49,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -60,6 +60,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -71,6 +72,7 @@
     opacity: 0;
     transform: translateX(20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -78,9 +80,12 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.5;
   }
@@ -151,6 +156,11 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
