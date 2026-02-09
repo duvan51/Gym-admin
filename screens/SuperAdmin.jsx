@@ -7,28 +7,43 @@ const SuperAdmin = () => {
     const [showAddModal, setShowAddModal] = useState(false);
 
     // Configuración de Planes SaaS (lo que SuperAdmin cobra a los Gyms)
-    const [saasPlans] = useState([
-        { id: 1, name: "Basic", price: 450000, limit: "100 socios", duration: 30 },
-        { id: 2, name: "Pro", price: 850000, limit: "500 socios", duration: 30 },
-        { id: 3, name: "Enterprise", price: 1500000, limit: "Ilimitado", duration: 30 }
-    ]);
-
-    const [gyms, setGyms] = useState([
-        { id: 1, name: "Central Iron Gym", owner: "Juan Pérez", status: "active", plan: "Enterprise", members: 842, startDate: "2024-01-12", endDate: "2025-01-12" },
-        { id: 2, name: "Spartan Fitness", owner: "Maria Casallas", status: "active", plan: "Pro", members: 320, startDate: "2024-02-05", endDate: "2025-03-05" },
-        { id: 3, name: "Yoga Flow Studio", owner: "Ricardo Sosa", status: "inactive", plan: "Basic", members: 45, startDate: "2023-11-20", endDate: "2023-12-20" },
-    ]);
+    const [gyms, setGyms] = useState([]);
 
     // Estados para el nuevo gimnasio
     const today = new Date().toISOString().split('T')[0];
     const [newGymData, setNewGymData] = useState({
         name: '',
         owner: '',
-        email: '', // Needed for auth
-        password: '', // Needed for auth
+        email: '',
+        password: '',
         planId: '',
+        agentId: '', // New Field
         startDate: today,
         endDate: ''
+    });
+
+    // Estados para gestión de Agentes
+    const [agents, setAgents] = useState([]);
+    const [showAddAgentModal, setShowAddAgentModal] = useState(false);
+    const [showEditAgentModal, setShowEditAgentModal] = useState(false);
+    const [editingAgent, setEditingAgent] = useState(null);
+    const [newAgentData, setNewAgentData] = useState({
+        name: '',
+        email: '',
+        phone: '',
+        commission_rate: 20,
+        password: ''
+    });
+
+    // Estados para gestión de Planes SaaS
+    const [showAddPlanModal, setShowAddPlanModal] = useState(false);
+    const [showEditPlanModal, setShowEditPlanModal] = useState(false);
+    const [editingPlan, setEditingPlan] = useState(null);
+    const [newPlanData, setNewPlanData] = useState({
+        name: '',
+        price_cop: 0,
+        gym_limit: '',
+        duration_days: 30
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -48,17 +63,33 @@ const SuperAdmin = () => {
     const [plans, setPlans] = useState([]);
     useEffect(() => {
         const fetchInitialData = async () => {
-            const { data: plansData } = await supabase.from('saas_plans').select('*');
-            if (plansData) {
-                setPlans(plansData);
-                setNewGymData(prev => ({ ...prev, planId: plansData[0]?.id }));
+            setLoading(true);
+            try {
+                const { data: plansData } = await supabase.from('saas_plans').select('*');
+                if (plansData) {
+                    setPlans(plansData);
+                    setNewGymData(prev => ({ ...prev, planId: plansData[0]?.id }));
+                }
+                await fetchGyms();
+                await fetchMetrics();
+                await fetchPayments();
+                await fetchAgents();
+            } catch (err) {
+                console.error("Error loading initial data:", err);
+            } finally {
+                setLoading(false);
             }
-            await fetchGyms();
-            await fetchMetrics();
-            await fetchPayments();
         };
         fetchInitialData();
     }, []);
+
+    const fetchAgents = async () => {
+        const { data } = await supabase
+            .from('saas_agents')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (data) setAgents(data);
+    };
 
     const fetchPayments = async () => {
         const { data } = await supabase
@@ -102,7 +133,8 @@ const SuperAdmin = () => {
             .from('gyms')
             .select(`
                 *,
-                saas_plans (id, name, price_cop)
+                saas_plans (id, name, price_cop),
+                saas_agents (id, name)
             `)
             .order('created_at', { ascending: false });
 
@@ -131,6 +163,8 @@ const SuperAdmin = () => {
                     status: g.status,
                     plan: g.saas_plans?.name || 'N/A',
                     plan_id: g.plan_id,
+                    agent_id: g.agent_id,
+                    agent_name: g.saas_agents?.name || 'Venta Directa',
                     members: count || 0,
                     startDate: g.start_date,
                     endDate: g.end_date,
@@ -184,6 +218,7 @@ const SuperAdmin = () => {
                     name: editingGym.name,
                     owner_name: editingGym.owner,
                     plan_id: editingGym.plan_id,
+                    agent_id: editingGym.agent_id,
                     start_date: editingGym.startDate,
                     end_date: editingGym.endDate,
                     status: editingGym.status
@@ -259,6 +294,7 @@ const SuperAdmin = () => {
                     name: newGymData.name,
                     owner_name: newGymData.owner,
                     plan_id: newGymData.planId,
+                    agent_id: newGymData.agentId || null,
                     start_date: newGymData.startDate,
                     end_date: newGymData.endDate,
                     status: 'active'
@@ -303,6 +339,174 @@ const SuperAdmin = () => {
     };
 
 
+    const handleAddPlan = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const { error } = await supabase
+                .from('saas_plans')
+                .insert([newPlanData]);
+
+            if (error) throw error;
+
+            const { data: plansData } = await supabase.from('saas_plans').select('*');
+            if (plansData) setPlans(plansData);
+
+            setShowAddPlanModal(false);
+            setNewPlanData({ name: '', price_cop: 0, gym_limit: '', duration_days: 30 });
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAddAgent = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            // 1. Create Auth User for the Agent
+            const { data: resultData, error: fnError } = await supabase.functions.invoke('manage-user-auth', {
+                body: {
+                    action: 'create_user',
+                    email: newAgentData.email,
+                    password: newAgentData.password,
+                    full_name: newAgentData.name,
+                    email_confirm: true
+                }
+            });
+
+            if (fnError) throw new Error(fnError.message || 'Error al crear usuario del agente');
+            const authUser = resultData.user;
+
+            // 2. Create Agent Record linked to user_id
+            const { error: agentError } = await supabase.from('saas_agents').insert([{
+                name: newAgentData.name,
+                email: newAgentData.email,
+                phone: newAgentData.phone,
+                commission_rate: newAgentData.commission_rate,
+                user_id: authUser.id
+            }]);
+
+            if (agentError) throw agentError;
+
+            // 3. Update Profile Role
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update({
+                    email: newAgentData.email,
+                    role: 'agent'
+                })
+                .eq('id', authUser.id);
+
+            if (profileError) console.warn("Error updating profile role:", profileError);
+
+            await fetchAgents();
+            setShowAddAgentModal(false);
+            setNewAgentData({ name: '', email: '', phone: '', commission_rate: 20, password: '' });
+            alert('Agente creado exitosamente. Credenciales enviadas (simulado).');
+
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+    const handleUpdateAgent = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            // Actualizar tabla saas_agents
+            const { error } = await supabase
+                .from('saas_agents')
+                .update({
+                    name: editingAgent.name,
+                    email: editingAgent.email,
+                    phone: editingAgent.phone,
+                    commission_rate: editingAgent.commission_rate
+                })
+                .eq('id', editingAgent.id);
+
+            if (error) throw error;
+
+            // Actualizar Credenciales de Auth si es necesario
+            if (editingAgent.user_id) {
+                const agentInList = agents.find(a => a.id === editingAgent.id);
+                // NOTA: saas_agents.email es la fuente de verdad del email.
+                const emailChanged = editingAgent.email !== agentInList?.email;
+                const passwordProvided = editingAgent.new_password && editingAgent.new_password.length > 0;
+
+                // Siempre llamamos a la función para asegurar email_confirm: true y corregir posibles inconsistencias
+                const { data: resultData, error: fnError } = await supabase.functions.invoke('manage-user-auth', {
+                    body: {
+                        action: 'update_credentials',
+                        userId: editingAgent.user_id,
+                        email: emailChanged ? editingAgent.email : undefined,
+                        password: passwordProvided ? editingAgent.new_password : undefined,
+                        email_confirm: true
+                    }
+                });
+
+                if (fnError) throw new Error(fnError.message || 'Error al actualizar credenciales del agente');
+
+                // Asegurar consistencia del perfil (Role & Email)
+                await supabase
+                    .from('profiles')
+                    .update({
+                        email: editingAgent.email,
+                        role: 'agent'
+                    })
+                    .eq('id', editingAgent.user_id);
+            }
+
+            await fetchAgents();
+            setShowEditAgentModal(false);
+            setEditingAgent(null);
+            alert('Agente actualizado correctamente');
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUpdatePlan = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const { error } = await supabase
+                .from('saas_plans')
+                .update({
+                    name: editingPlan.name,
+                    price_cop: editingPlan.price_cop,
+                    gym_limit: editingPlan.gym_limit,
+                    duration_days: editingPlan.duration_days
+                })
+                .eq('id', editingPlan.id);
+
+            if (error) throw error;
+
+            const { data: plansData } = await supabase.from('saas_plans').select('*');
+            if (plansData) setPlans(plansData);
+
+            setShowEditPlanModal(false);
+            setEditingPlan(null);
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const LocalLoader = () => (
+        <div className="flex-1 flex flex-col items-center justify-center space-y-4 animate-fadeIn">
+            <div className="size-16 border-4 border-primary-blue/20 border-t-primary-blue rounded-full animate-spin"></div>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.4em]">Sincronizando Datos...</p>
+        </div>
+    );
+
     return (
         <div className="min-h-screen bg-background-dark text-white font-display flex flex-col">
             {/* SuperAdmin Header */}
@@ -321,6 +525,7 @@ const SuperAdmin = () => {
                     {[
                         { id: 'metrics', label: 'Métricas', icon: 'analytics' },
                         { id: 'gyms', label: 'Gimnasios', icon: 'domain' },
+                        { id: 'agents', label: 'Agentes', icon: 'support_agent' },
                         { id: 'payments', label: 'Pagos SaaS', icon: 'receipt_long' },
                         { id: 'pricing', label: 'Precios SaaS', icon: 'payments' }
                     ].map(tab => (
@@ -341,8 +546,10 @@ const SuperAdmin = () => {
                 </Link>
             </header>
 
-            <main className="flex-1 p-10 overflow-y-auto custom-scrollbar">
-                {activeTab === 'metrics' && (
+            <main className="flex-1 p-10 overflow-y-auto custom-scrollbar flex flex-col">
+                {loading && <LocalLoader />}
+
+                {!loading && activeTab === 'metrics' && (
                     <div className="space-y-8 animate-fadeIn">
                         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             {[
@@ -377,26 +584,27 @@ const SuperAdmin = () => {
                     </div>
                 )}
 
-                {activeTab === 'gyms' && (
+                {!loading && activeTab === 'gyms' && (
                     <div className="space-y-8 animate-fadeIn">
-                        <div className="flex justify-between items-center">
+                        <header className="flex justify-between items-end">
                             <div>
-                                <h2 className="text-3xl font-black uppercase italic tracking-tight">Directorio de <span className="text-primary-blue">Negocios</span></h2>
-                                <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Control de licencias y suscripciones activas</p>
+                                <h2 className="text-3xl font-black uppercase italic tracking-tight">Gimnasios <span className="text-primary-blue">Partner</span></h2>
+                                <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Directorio central de unidades operativas</p>
                             </div>
-                            <div className="flex gap-4">
-                                <button onClick={() => setShowAddModal(true)} className="bg-primary-blue text-white px-8 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-xl shadow-primary-blue/20 flex items-center gap-2 hover:scale-105 transition-transform">
-                                    <span className="material-symbols-outlined text-lg">add_business</span>
-                                    Registrar Gimnasio
-                                </button>
-                            </div>
-                        </div>
+                            <button
+                                onClick={() => setShowAddModal(true)}
+                                className="bg-primary-blue hover:bg-blue-600 text-white px-8 py-4 rounded-2xl flex items-center gap-3 transition-all font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary-blue/20"
+                            >
+                                <span className="material-symbols-outlined">add_circle</span>
+                                Registrar Gimnasio
+                            </button>
+                        </header>
 
                         <div className="bg-surface-dark border border-border-dark rounded-[2.5rem] overflow-hidden shadow-2xl">
                             <table className="w-full text-left">
                                 <thead className="bg-background-dark/50 border-b border-border-dark">
                                     <tr>
-                                        <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Gimnasio / Dueño</th>
+                                        <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Unidad de Negocio</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Plan SaaS</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Inicia</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-primary-blue tracking-widest">Vence el</th>
@@ -427,6 +635,10 @@ const SuperAdmin = () => {
                                                 </td>
                                                 <td className="px-8 py-6 font-bold text-sm text-slate-400">
                                                     {new Date(gym.startDate).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <p className="text-[10px] font-black uppercase text-slate-500 tracking-tighter mb-1">Vendedor</p>
+                                                    <p className="text-xs font-bold text-white uppercase italic">{gym.agent_name}</p>
                                                 </td>
                                                 <td className="px-8 py-6">
                                                     <div className={`flex items-center gap-2 font-black italic text-sm ${isExpired ? 'text-red-500' : 'text-white'}`}>
@@ -470,7 +682,7 @@ const SuperAdmin = () => {
                 )}
 
 
-                {activeTab === 'payments' && (
+                {!loading && activeTab === 'payments' && (
                     <div className="space-y-8 animate-fadeIn">
                         <div>
                             <h2 className="text-3xl font-black uppercase italic tracking-tight">Historial de <span className="text-primary-blue">Pagos SaaS</span></h2>
@@ -513,28 +725,121 @@ const SuperAdmin = () => {
                         </div>
                     </div>
                 )}
-                {activeTab === 'pricing' && (
+                {!loading && activeTab === 'agents' && (
+                    <div className="space-y-8 animate-fadeIn">
+                        <header className="flex justify-between items-end">
+                            <div>
+                                <h2 className="text-3xl font-black uppercase italic tracking-tight">Fuerza de <span className="text-primary-blue">Ventas (Agentes)</span></h2>
+                                <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Gestión de comisiones por referidos (20%)</p>
+                            </div>
+                            <button
+                                onClick={() => setShowAddAgentModal(true)}
+                                className="bg-primary-blue hover:bg-blue-600 text-white px-8 py-4 rounded-2xl flex items-center gap-3 transition-all font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary-blue/20"
+                            >
+                                <span className="material-symbols-outlined">person_add</span>
+                                Nuevo Agente
+                            </button>
+                        </header>
+
+                        <div className="bg-surface-dark border border-border-dark rounded-[2.5rem] overflow-hidden">
+                            <table className="w-full text-left">
+                                <thead className="bg-background-dark/50 border-b border-border-dark">
+                                    <tr>
+                                        <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Agente</th>
+                                        <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Ventas Totales</th>
+                                        <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">MRR Atribuido</th>
+                                        <th className="px-8 py-6 text-[10px] font-black uppercase text-primary tracking-widest">Comisión (20%)</th>
+                                        <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest text-right">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {agents.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="5" className="px-8 py-20 text-center text-slate-500 font-bold uppercase tracking-widest">No hay agentes registrados</td>
+                                        </tr>
+                                    ) : agents.map(agent => {
+                                        const agentGyms = gyms.filter(g => g.agent_id === agent.id);
+                                        const totalMrr = agentGyms.reduce((acc, g) => {
+                                            const plan = plans.find(p => p.id === g.plan_id);
+                                            return acc + (Number(plan?.price_cop) || 0);
+                                        }, 0);
+                                        const commission = totalMrr * (agent.commission_rate / 100);
+
+                                        return (
+                                            <tr key={agent.id} className="hover:bg-white/[0.02] transition-colors group">
+                                                <td className="px-8 py-6">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="size-10 rounded-xl bg-primary-blue/10 text-primary-blue flex items-center justify-center">
+                                                            <span className="material-symbols-outlined">account_circle</span>
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-black uppercase italic text-sm">{agent.name}</p>
+                                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{agent.email}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6 font-bold text-sm">{agentGyms.length} Gyms</td>
+                                                <td className="px-8 py-6 font-bold text-sm text-slate-400">{formatCurrency(totalMrr)}</td>
+                                                <td className="px-8 py-6">
+                                                    <p className="text-primary font-black italic text-lg">{formatCurrency(commission)}</p>
+                                                    <p className="text-[8px] font-black text-slate-500 uppercase">{agent.commission_rate}% Mensual Proyectado</p>
+                                                </td>
+                                                <td className="px-8 py-6 text-right">
+                                                    <button
+                                                        onClick={() => {
+                                                            setEditingAgent(agent);
+                                                            setShowEditAgentModal(true);
+                                                        }}
+                                                        className="p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-white transition-all">
+                                                        <span className="material-symbols-outlined">edit</span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+                {!loading && activeTab === 'pricing' && (
                     <div className="space-y-12 animate-fadeIn max-w-6xl mx-auto">
-                        <header className="text-center">
-                            <h2 className="text-4xl font-black uppercase italic mb-4 tracking-tighter">Esquema de <span className="text-primary-blue">Tarifas SaaS</span></h2>
-                            <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-sm">Define el costo de suscripción por gimnasio</p>
+                        <header className="flex justify-between items-end">
+                            <div className="text-left">
+                                <h2 className="text-4xl font-black uppercase italic mb-4 tracking-tighter">Esquema de <span className="text-primary-blue">Tarifas SaaS</span></h2>
+                                <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-sm">Define el costo de suscripción por gimnasio</p>
+                            </div>
+                            <button
+                                onClick={() => setShowAddPlanModal(true)}
+                                className="bg-primary hover:bg-green-600 text-background-dark px-8 py-4 rounded-2xl flex items-center gap-3 transition-all font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20"
+                            >
+                                <span className="material-symbols-outlined">add_card</span>
+                                Nuevo Plan
+                            </button>
                         </header>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            {saasPlans.map(plan => (
+                            {plans.map(plan => (
                                 <div key={plan.id} className="bg-surface-dark border-2 border-border-dark rounded-[3rem] p-10 flex flex-col items-center text-center group hover:border-primary-blue/50 transition-all hover:-translate-y-2">
                                     <div className="size-16 rounded-3xl bg-white/5 flex items-center justify-center mb-6 group-hover:bg-primary-blue/20 group-hover:text-primary-blue transition-all">
                                         <span className="material-symbols-outlined text-3xl font-black">inventory_2</span>
                                     </div>
                                     <h3 className="text-2xl font-black uppercase italic mb-2 tracking-tight">{plan.name}</h3>
-                                    <div className="text-3xl font-black text-white mb-4 italic">{formatCurrency(plan.price)}<span className="text-xs text-slate-500 font-bold uppercase tracking-widest not-italic ml-1">/mes</span></div>
+                                    <div className="text-3xl font-black text-white mb-4 italic">{formatCurrency(plan.price_cop)}<span className="text-xs text-slate-500 font-bold uppercase tracking-widest not-italic ml-1">/mes</span></div>
                                     <div className="w-full h-px bg-white/5 mb-8"></div>
                                     <ul className="space-y-4 mb-10 text-xs font-bold uppercase tracking-widest text-slate-400">
-                                        <li className="flex items-center gap-2 justify-center"><span className="material-symbols-outlined text-primary-blue text-lg">check_circle</span> {plan.limit}</li>
+                                        <li className="flex items-center gap-2 justify-center"><span className="material-symbols-outlined text-primary-blue text-lg">check_circle</span> {plan.gym_limit || 'Sin límite'}</li>
                                         <li className="flex items-center gap-2 justify-center"><span className="material-symbols-outlined text-primary-blue text-lg">check_circle</span> App iOS/Android</li>
                                         <li className="flex items-center gap-2 justify-center"><span className="material-symbols-outlined text-primary-blue text-lg">check_circle</span> Backend Cloud</li>
                                     </ul>
-                                    <button className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest hover:bg-primary-blue hover:text-white transition-all">Editar Tarifario</button>
+                                    <button
+                                        onClick={() => {
+                                            setEditingPlan(plan);
+                                            setShowEditPlanModal(true);
+                                        }}
+                                        className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest hover:bg-primary-blue hover:text-white transition-all">
+                                        Editar Tarifario
+                                    </button>
                                 </div>
                             ))}
                         </div>
@@ -625,6 +930,19 @@ const SuperAdmin = () => {
                                     >
                                         {plans.map(p => (
                                             <option key={p.id} value={p.id}>{p.name} - {formatCurrency(p.price_cop)}/mes</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Agente Vendedor (20% Com.)</label>
+                                    <select
+                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all appearance-none"
+                                        value={newGymData.agentId}
+                                        onChange={e => setNewGymData({ ...newGymData, agentId: e.target.value })}
+                                    >
+                                        <option value="">Venta Directa (Sin Agente)</option>
+                                        {agents.map(a => (
+                                            <option key={a.id} value={a.id}>{a.name}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -747,6 +1065,19 @@ const SuperAdmin = () => {
                                         onChange={e => setEditingGym({ ...editingGym, admin_new_password: e.target.value })}
                                     />
                                 </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Agente Vendedor</label>
+                                    <select
+                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
+                                        value={editingGym.agent_id || ''}
+                                        onChange={e => setEditingGym({ ...editingGym, agent_id: e.target.value })}
+                                    >
+                                        <option value="">Venta Directa (Sin Agente)</option>
+                                        {agents.map(a => (
+                                            <option key={a.id} value={a.id}>{a.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
 
                             <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all active:scale-95 shadow-xl disabled:opacity-50">
@@ -757,6 +1088,269 @@ const SuperAdmin = () => {
                 </div>
             )}
 
+            {/* Modal: Nuevo Plan SaaS */}
+            {showAddPlanModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                    <div className="absolute inset-0 bg-background-dark/95 backdrop-blur-xl" onClick={() => setShowAddPlanModal(false)}></div>
+                    <div className="relative bg-surface-dark border border-border-dark w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp">
+                        <header className="bg-background-dark/50 p-10 border-b border-border-dark flex justify-between items-center">
+                            <div>
+                                <h3 className="text-3xl font-black italic uppercase tracking-tighter">Crear <span className="text-primary-blue">Plan SaaS</span></h3>
+                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Configuración de nueva tarifa de suscripción</p>
+                            </div>
+                            <button onClick={() => setShowAddPlanModal(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-4xl">close</span></button>
+                        </header>
+
+                        <form onSubmit={handleAddPlan} className="p-10 space-y-6">
+                            <div className="grid grid-cols-1 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre del Plan</label>
+                                    <input
+                                        required
+                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
+                                        placeholder="Ej: Plan Profesional"
+                                        value={newPlanData.name}
+                                        onChange={e => setNewPlanData({ ...newPlanData, name: e.target.value })}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Precio (COP)</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
+                                            value={newPlanData.price_cop}
+                                            onChange={e => setNewPlanData({ ...newPlanData, price_cop: Number(e.target.value) })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Duración (Días)</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
+                                            value={newPlanData.duration_days}
+                                            onChange={e => setNewPlanData({ ...newPlanData, duration_days: Number(e.target.value) })}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Límite de Socios (Texto)</label>
+                                    <input
+                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
+                                        placeholder="Ej: Hasta 500 socios"
+                                        value={newPlanData.gym_limit}
+                                        onChange={e => setNewPlanData({ ...newPlanData, gym_limit: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl disabled:opacity-50">
+                                {loading ? 'Creando...' : 'Publicar Plan'}
+                                <span className="material-symbols-outlined">add_task</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Editar Plan SaaS */}
+            {showEditPlanModal && editingPlan && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                    <div className="absolute inset-0 bg-background-dark/95 backdrop-blur-xl" onClick={() => setShowEditPlanModal(false)}></div>
+                    <div className="relative bg-surface-dark border border-border-dark w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp">
+                        <header className="bg-background-dark/50 p-10 border-b border-border-dark flex justify-between items-center">
+                            <div>
+                                <h3 className="text-3xl font-black italic uppercase tracking-tighter">Editar <span className="text-primary-blue">Tarifa</span></h3>
+                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Sincronización en tiempo real con el ecosistema</p>
+                            </div>
+                            <button onClick={() => setShowEditPlanModal(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-4xl">close</span></button>
+                        </header>
+
+                        <form onSubmit={handleUpdatePlan} className="p-10 space-y-6">
+                            <div className="grid grid-cols-1 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre del Plan</label>
+                                    <input
+                                        required
+                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
+                                        value={editingPlan.name}
+                                        onChange={e => setEditingPlan({ ...editingPlan, name: e.target.value })}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Precio (COP)</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
+                                            value={editingPlan.price_cop}
+                                            onChange={e => setEditingPlan({ ...editingPlan, price_cop: Number(e.target.value) })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Duración (Días)</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
+                                            value={editingPlan.duration_days}
+                                            onChange={e => setEditingPlan({ ...editingPlan, duration_days: Number(e.target.value) })}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Límite de Socios (Texto)</label>
+                                    <input
+                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
+                                        value={editingPlan.gym_limit}
+                                        onChange={e => setEditingPlan({ ...editingPlan, gym_limit: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl disabled:opacity-50">
+                                {loading ? 'Actualizando...' : 'Guardar Cambios'}
+                                <span className="material-symbols-outlined">save</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Nuevo Agente */}
+            {showAddAgentModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                    <div className="absolute inset-0 bg-background-dark/95 backdrop-blur-xl" onClick={() => setShowAddAgentModal(false)}></div>
+                    <div className="relative bg-surface-dark border border-border-dark w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp">
+                        <header className="bg-background-dark/50 p-10 border-b border-border-dark flex justify-between items-center">
+                            <div>
+                                <h3 className="text-3xl font-black italic uppercase tracking-tighter">Nuevo <span className="text-primary-blue">Agente de Ventas</span></h3>
+                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Gana 20% por cada gimnasio referido</p>
+                            </div>
+                            <button onClick={() => setShowAddAgentModal(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-4xl">close</span></button>
+                        </header>
+
+                        <form onSubmit={handleAddAgent} className="p-10 space-y-6">
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre Completo</label>
+                                    <input
+                                        required
+                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
+                                        placeholder="Ej: Juan Pérez"
+                                        value={newAgentData.name}
+                                        onChange={e => setNewAgentData({ ...newAgentData, name: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Email de Contacto</label>
+                                    <input
+                                        type="email"
+                                        required
+                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
+                                        placeholder="correo@ejemplo.com"
+                                        value={newAgentData.email}
+                                        onChange={e => setNewAgentData({ ...newAgentData, email: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Contraseña de Acceso</label>
+                                    <input
+                                        type="password"
+                                        required
+                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
+                                        placeholder="••••••••"
+                                        value={newAgentData.password}
+                                        onChange={e => setNewAgentData({ ...newAgentData, password: e.target.value })}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Teléfono</label>
+                                        <input
+                                            className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm"
+                                            placeholder="300..."
+                                            value={newAgentData.phone}
+                                            onChange={e => setNewAgentData({ ...newAgentData, phone: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">% Comisión</label>
+                                        <input
+                                            type="number"
+                                            className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm"
+                                            value={newAgentData.commission_rate}
+                                            onChange={e => setNewAgentData({ ...newAgentData, commission_rate: Number(e.target.value) })}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all">
+                                {loading ? 'Creando...' : 'Registrar Agente'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Editar Agente */}
+            {showEditAgentModal && editingAgent && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                    <div className="absolute inset-0 bg-background-dark/95 backdrop-blur-xl" onClick={() => setShowEditAgentModal(false)}></div>
+                    <div className="relative bg-surface-dark border border-border-dark w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp">
+                        <header className="bg-background-dark/50 p-10 border-b border-border-dark flex justify-between items-center">
+                            <h3 className="text-3xl font-black italic uppercase tracking-tighter">Editar <span className="text-primary-blue">Agente</span></h3>
+                            <button onClick={() => setShowEditAgentModal(false)} className="text-slate-500 hover:text-white"><span className="material-symbols-outlined text-4xl">close</span></button>
+                        </header>
+                        <form onSubmit={handleUpdateAgent} className="p-10 space-y-6">
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre Completo</label>
+                                    <input
+                                        required
+                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
+                                        value={editingAgent.name}
+                                        onChange={e => setEditingAgent({ ...editingAgent, name: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Email</label>
+                                    <input
+                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm"
+                                        value={editingAgent.email}
+                                        onChange={e => setEditingAgent({ ...editingAgent, email: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nueva Contraseña (Opcional)</label>
+                                    <input
+                                        type="password"
+                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm"
+                                        placeholder="Dejar en blanco para no cambiar"
+                                        value={editingAgent.new_password || ''}
+                                        onChange={e => setEditingAgent({ ...editingAgent, new_password: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">% Comisión</label>
+                                    <input
+                                        type="number"
+                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm"
+                                        value={editingAgent.commission_rate}
+                                        onChange={e => setEditingAgent({ ...editingAgent, commission_rate: Number(e.target.value) })}
+                                    />
+                                </div>
+                            </div>
+                            <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all">
+                                {loading ? 'Actualizando...' : 'Guardar Cambios'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

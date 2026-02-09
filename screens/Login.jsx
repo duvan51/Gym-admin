@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 
 const Login = () => {
@@ -8,8 +8,160 @@ const Login = () => {
     const [showLoginForm, setShowLoginForm] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true); // Start with true to check session
     const [error, setError] = useState(null);
+
+    const [diagMsg, setDiagMsg] = useState('Iniciando...');
+    const location = useLocation();
+    const isHandlingState = React.useRef(false);
+
+    // OAuth Hash Recovery - Specifically for HashRouter double-hash issue
+    useEffect(() => {
+        const recoverHash = async () => {
+            const rawHash = window.location.hash;
+            // Check if we have the "double hash" pattern: #/login#access_token=...
+            if (rawHash.includes('access_token=') && rawHash.includes('#/login#')) {
+                console.log("Rescatando llaves de acceso del fragmento URL...");
+                setDiagMsg("Validando llaves de Google...");
+
+                // Extract everything after the double hash #/login#
+                const hashPart = rawHash.substring(rawHash.lastIndexOf('#') + 1);
+                const params = new URLSearchParams(hashPart);
+
+                const accessToken = params.get('access_token');
+                const refreshToken = params.get('refresh_token');
+
+                if (accessToken) {
+                    try {
+                        const { data, error } = await supabase.auth.setSession({
+                            access_token: accessToken,
+                            refresh_token: refreshToken
+                        });
+
+                        if (!error && data.session) {
+                            console.log("Sesión rescatada con éxito.");
+                            // Clean URL immediately to avoid re-parsing
+                            window.history.replaceState(null, null, window.location.origin + window.location.pathname + '#/login');
+                            // The onAuthStateChange will take it from here
+                        }
+                    } catch (e) {
+                        console.error("Error setting sessions manual:", e);
+                    }
+                }
+            }
+        };
+        recoverHash();
+    }, []);
+
+    // Unified Session & Redirection Logic - High Resilience
+    useEffect(() => {
+        const processSession = async (session) => {
+            if (isHandlingState.current) return;
+            isHandlingState.current = true;
+
+            try {
+                if (!session) {
+                    setLoading(false);
+                    isHandlingState.current = false;
+                    return;
+                }
+
+                setLoading(true);
+                setDiagMsg(`Sincronizando: ${session.user.email}...`);
+
+                // Fetch profile with direct query
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('role, activity_level')
+                    .eq('id', session.user.id)
+                    .maybeSingle();
+
+                if (profileError) {
+                    console.error("Profile query error:", profileError);
+                    setDiagMsg(`Error de perfil: ${profileError.message}`);
+                    setLoading(false);
+                    isHandlingState.current = false;
+                    return;
+                }
+
+                if (!profile) {
+                    // This is a critical state: User exists in Auth but not in Profiles
+                    setDiagMsg('Perfil nuevo detectado. Vinculando...');
+                    // We wait a bit for the trigger, or we could force a profile here
+                    // For now, retry once
+                    await new Promise(r => setTimeout(r, 1500));
+                    const { data: retryProfile } = await supabase
+                        .from('profiles')
+                        .select('role')
+                        .eq('id', session.user.id)
+                        .maybeSingle();
+
+                    if (!retryProfile) {
+                        setDiagMsg('No se encontró el perfil. Reintenta login.');
+                        setLoading(false);
+                        isHandlingState.current = false;
+                        return;
+                    }
+                    profile = retryProfile;
+                }
+
+                let targetPath = null;
+                const role = profile.role?.toLowerCase();
+
+                if (role === 'superadmin') targetPath = '/superadmin';
+                else if (role === 'admin') targetPath = '/admin';
+                else if (role === 'agent') targetPath = '/agent-dashboard';
+                else targetPath = profile.activity_level ? '/user-plan' : '/onboarding-1';
+
+                // Navigation Logic
+                if (targetPath) {
+                    // Check if we already ARE where we need to be
+                    if (location.pathname === targetPath) {
+                        setLoading(false);
+                        setShowLoginForm(false);
+                    } else {
+                        setDiagMsg(`Entrando a ${targetPath}...`);
+                        // Keep loading = true during navigation
+                        navigate(targetPath, { replace: true });
+                    }
+                } else {
+                    setDiagMsg('Error: Rol no identificado.');
+                    setLoading(false);
+                }
+            } catch (err) {
+                console.error('Session processing failed:', err);
+                setDiagMsg('Error de conexión.');
+                setLoading(false);
+            } finally {
+                isHandlingState.current = false;
+            }
+        };
+
+        // Initial check combined with listener
+        const init = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) processSession(session);
+            else {
+                // Check if we are in the middle of an OAuth redirect (even with double hash)
+                if (!window.location.hash.includes('access_token')) {
+                    setLoading(false);
+                }
+            }
+        };
+        init();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            console.log("Auth Event:", event);
+            if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+                if (session) processSession(session);
+            } else if (event === 'SIGNED_OUT') {
+                setLoading(false);
+                setShowLoginForm(false);
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, [navigate, location.pathname]);
 
     const sectors = [
         {
@@ -46,6 +198,7 @@ const Login = () => {
 
     const handleSectorSelect = (sector) => {
         setSelectedSector(sector);
+        localStorage.setItem('preferred_sector', JSON.stringify(sector));
         setShowLoginForm(true);
         setError(null);
     };
@@ -56,38 +209,18 @@ const Login = () => {
         setError(null);
 
         try {
-            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            const { error: authError } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             });
 
             if (authError) throw authError;
 
-            // Fetch profile to verify role, gym, and onboarding status
-            const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('role, fitness_goals, activity_level')
-                .eq('id', authData.user.id)
-                .single();
-
-            if (profileError) throw profileError;
-
-            // Security check: Verify if the user's role matches the selected sector
-            if (selectedSector.id === 'saas' && profile.role !== 'superadmin') {
-                throw new Error('No tienes permisos de SuperAdmin para acceder a este portal.');
-            }
-            if (selectedSector.id === 'admin' && profile.role !== 'admin' && profile.role !== 'superadmin') {
-                throw new Error('No tienes permisos de Administrador para acceder a este portal.');
-            }
-
-            // 3. Logic to skip onboarding if already completed
-            let targetPath = selectedSector.path;
-            if (selectedSector.id === 'user' && profile.activity_level) {
-                targetPath = '/user-plan'; // Skip onboarding-1,2,3
-            }
-
-            // Success: Redirect to the sector path
-            navigate(targetPath);
+            // We don't navigate here anymore. 
+            // The useEffect with onAuthStateChange will pick up the 'SIGNED_IN' event
+            // and perform the profile check and redirection logic consistently.
+            // If it takes too long, we show the "Sincronizando" screen.
+            setShowLoginForm(false);
         } catch (err) {
             setError(err.message);
             setLoading(false);
@@ -95,14 +228,23 @@ const Login = () => {
     };
 
     const handleGoogleLogin = async () => {
-        setLoading(true);
-        setError(null);
         try {
+            setLoading(true);
+            setDiagMsg('Conectando con Google...');
+            localStorage.setItem('preferred_sector', JSON.stringify(selectedSector));
+
+            // Explicitly redirect to the hash path for HashRouter compatibility
+            const redirectUrl = window.location.origin + '/#/login';
+
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: window.location.origin
-                }
+                    redirectTo: redirectUrl,
+                    queryParams: {
+                        access_type: 'offline',
+                        prompt: 'consent',
+                    },
+                },
             });
             if (error) throw error;
         } catch (err) {
@@ -130,6 +272,28 @@ const Login = () => {
             setLoading(false);
         }
     };
+
+    if (loading && !showLoginForm) {
+        return (
+            <div className="min-h-screen bg-background-dark flex flex-col items-center justify-center font-display">
+                <div className="relative">
+                    <div className="size-24 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-primary text-3xl animate-pulse">lock</span>
+                    </div>
+                </div>
+                <div className="mt-8 text-center animate-in fade-in zoom-in duration-700">
+                    <h2 className="text-white font-black uppercase italic tracking-widest text-sm mb-2">Sincronizando Acceso</h2>
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em] mb-4">Preparando tu ecosistema personal...</p>
+                    <div className="flex justify-center gap-1.5">
+                        <div className="size-1 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                        <div className="size-1 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                        <div className="size-1 bg-primary rounded-full animate-bounce"></div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-background-dark flex flex-col items-center justify-center p-6 relative overflow-hidden font-display selection:bg-primary selection:text-black">

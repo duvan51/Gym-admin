@@ -24,6 +24,9 @@ const SuperAdmin = lazy(() => import('./screens/SuperAdmin'));
 const ResetPassword = lazy(() => import('./screens/ResetPassword'));
 const Store = lazy(() => import('./screens/Store'));
 const StoreAdmin = lazy(() => import('./screens/StoreAdmin'));
+const AgentDashboard = lazy(() => import('./screens/AgentDashboard'));
+
+import ProtectedRoute from './components/ProtectedRoute'; // Static import for High Order Component
 
 const PageLoader = () => (
   <div className="min-h-screen bg-background-dark flex items-center justify-center">
@@ -51,8 +54,31 @@ const App = () => {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/admin" element={<DashboardAdmin />} />
-          <Route path="/accounting-admin" element={<AccountingAdmin />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+
+          {/* Super Admin Routes */}
+          <Route element={<ProtectedRoute allowedRoles={['superadmin']} />}>
+            <Route path="/superadmin" element={<SuperAdmin />} />
+          </Route>
+
+          {/* Agent Routes */}
+          <Route element={<ProtectedRoute allowedRoles={['agent']} />}>
+            <Route path="/agent-dashboard" element={<AgentDashboard />} />
+          </Route>
+
+          {/* Admin / Gym Owner Routes */}
+          <Route element={<ProtectedRoute allowedRoles={['admin', 'superadmin']} />}>
+            <Route path="/admin" element={<DashboardAdmin />} />
+            <Route path="/accounting-admin" element={<AccountingAdmin />} />
+            <Route path="/brand-settings" element={<BrandSettings />} />
+            <Route path="/challenges-admin" element={<ChallengesAdmin />} />
+            <Route path="/analytics-report" element={<AnalyticsReport />} />
+            <Route path="/community-admin" element={<CommunityAdmin />} />
+            <Route path="/store-admin" element={<StoreAdmin />} />
+          </Route>
+
+          {/* User Routes - Assuming 'user' role or any authenticated user */}
+          {/* For now keeping them public or just authenticated if needed, but per request focusing on Admin security */}
           <Route path="/onboarding-1" element={<OnboardingStep1 />} />
           <Route path="/onboarding-2" element={<OnboardingStep2 />} />
           <Route path="/onboarding-3" element={<OnboardingStep3 />} />
@@ -63,14 +89,8 @@ const App = () => {
           <Route path="/library" element={<ExerciseLibrary />} />
           <Route path="/user-profile" element={<UserProfile user={userProfile} />} />
           <Route path="/community" element={<Community />} />
-          <Route path="/brand-settings" element={<BrandSettings />} />
-          <Route path="/challenges-admin" element={<ChallengesAdmin />} />
-          <Route path="/analytics-report" element={<AnalyticsReport />} />
-          <Route path="/community-admin" element={<CommunityAdmin />} />
-          <Route path="/superadmin" element={<SuperAdmin />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/store" element={<Store />} />
-          <Route path="/store-admin" element={<StoreAdmin />} />
+
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
