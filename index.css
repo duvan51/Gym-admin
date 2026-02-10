@@ -136,10 +136,15 @@
 
 /* Glass morphism effect */
 .glass-effect {
-  background: rgba(26, 46, 33, 0.7);
+  background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(40, 57, 46, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .glass-effect {
+  background: rgba(26, 46, 33, 0.7);
+  border-color: rgba(40, 57, 46, 0.5);
 }
 
 /* Card hover effects */
@@ -185,5 +190,51 @@
 
   100% {
     transform: translateX(100%);
+  }
+}
+
+/* Professional Print Styles for react-to-print */
+@media print {
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+
+  /* Reset para asegurar fondo blanco y texto negro en papel */
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #receipt-content {
+    visibility: visible !important;
+    display: block !important;
+    width: 100% !important;
+    background: white !important;
+    color: black !important;
+    font-family: 'Inter', serif !important;
+  }
+
+  /* Ocultar elementos que no deben salir en el papel */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Forzar visibilidad de colores corporativos en PDF/Papel */
+  .bg-slate-900 {
+    background-color: #0f172a !important;
+    color: white !important;
+  }
+
+  .text-primary-blue {
+    color: #2563eb !important;
+  }
+
+  /* Asegurar que las sombras y efectos web no ensucien el papel */
+  * {
+    box-shadow: none !important;
+    transition: none !important;
+    animation: none !important;
   }
 }

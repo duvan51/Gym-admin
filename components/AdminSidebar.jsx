@@ -41,6 +41,7 @@ const AdminSidebar = () => {
         { path: '/challenges-admin', label: 'Desafíos', icon: 'emoji_events' },
         { path: '/community-admin', label: 'Comunidad', icon: 'forum' },
         { path: '/store-admin', label: 'Tienda / Marketplace', icon: 'storefront' },
+        { path: '/subscription-admin', label: 'Suscripción', icon: 'workspace_premium' },
         { path: '/brand-settings', label: 'Configuración', icon: 'settings_suggest' },
     ];
 
@@ -48,7 +49,7 @@ const AdminSidebar = () => {
         <aside className="w-72 border-r border-primary/10 bg-background-light dark:bg-background-dark flex flex-col h-screen sticky top-0 shrink-0">
             <div className="p-6 flex flex-col h-full">
                 <div className="flex items-center gap-4 mb-10">
-                    <div className="size-12 rounded-xl bg-surface-dark border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-lg shadow-black/20">
+                    <div className="size-12 rounded-xl bg-surface-light dark:bg-surface-dark border border-black/10 dark:border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-lg shadow-black/20 transition-colors">
                         {profile?.gyms?.avatar_url ? (
                             <img src={profile.gyms.avatar_url} alt="Gym Logo" className="w-full h-full object-cover" />
                         ) : (
@@ -57,9 +58,9 @@ const AdminSidebar = () => {
                     </div>
                     <div className="flex flex-col min-w-0 flex-1">
                         {sidebarLoading ? (
-                            <div className="h-4 w-32 bg-white/10 rounded animate-pulse"></div>
+                            <div className="h-4 w-32 bg-black/10 dark:bg-white/10 rounded animate-pulse transition-colors"></div>
                         ) : (
-                            <h1 className="text-sm font-black leading-tight uppercase italic truncate">{profile?.gyms?.name || 'SaaS Admin'}</h1>
+                            <h1 className="text-sm font-black leading-tight uppercase italic truncate text-slate-800 dark:text-white transition-colors">{profile?.gyms?.name || 'SaaS Admin'}</h1>
                         )}
                         <p className="text-[10px] text-primary/60 uppercase tracking-[0.2em] font-black italic">Operaciones</p>
                     </div>
@@ -84,9 +85,9 @@ const AdminSidebar = () => {
                 </nav>
                 <div className="pt-6 border-t border-primary/10">
                     <div className="flex items-center gap-3 mb-6 p-2">
-                        <div className="size-10 rounded-full bg-cover bg-center border-2 border-primary/30 bg-surface-dark flex items-center justify-center">
+                        <div className="size-10 rounded-full bg-cover bg-center border-2 border-primary/30 bg-surface-light dark:bg-surface-dark flex items-center justify-center transition-colors">
                             {sidebarLoading ? (
-                                <div className="size-full rounded-full bg-white/5 animate-pulse"></div>
+                                <div className="size-full rounded-full bg-black/5 dark:bg-white/5 animate-pulse transition-colors"></div>
                             ) : profile?.avatar_url ? (
                                 <img src={profile.avatar_url} alt="Profile" className="w-full h-full rounded-full object-cover" />
                             ) : (
@@ -101,7 +102,7 @@ const AdminSidebar = () => {
                                 </>
                             ) : (
                                 <>
-                                    <span className="text-sm font-bold truncate">{profile?.full_name || 'Admin User'}</span>
+                                    <span className="text-sm font-bold truncate text-slate-800 dark:text-white transition-colors">{profile?.full_name || 'Admin User'}</span>
                                     <span className="text-xs text-primary/60 truncate uppercase font-bold tracking-tighter">
                                         {profile?.gyms?.name || 'SaaS Admin'}
                                     </span>
@@ -109,7 +110,7 @@ const AdminSidebar = () => {
                             )}
                         </div>
                     </div>
-                    <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 bg-slate-200 dark:bg-slate-800 hover:bg-red-500/10 hover:text-red-500 py-3 rounded-lg font-bold text-sm transition-all group">
+                    <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 bg-black/5 dark:bg-slate-800 hover:bg-red-500/10 hover:text-red-500 py-3 rounded-lg font-bold text-sm transition-all group text-slate-500 dark:text-slate-400">
                         <span className="material-symbols-outlined text-xl transition-transform group-hover:translate-x-1">logout</span>
                         Cerrar Sesión
                     </button>

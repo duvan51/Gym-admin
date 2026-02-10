@@ -12,6 +12,17 @@ const UserProfile = () => {
     const [availablePlans, setAvailablePlans] = useState([]);
     const [showPlanModal, setShowPlanModal] = useState(false);
     const [isPaying, setIsPaying] = useState(false);
+    const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
+
+    useEffect(() => {
+        const query = new URLSearchParams(window.location.search);
+        if (query.get('success') === 'true') {
+            setShowPaymentSuccess(true);
+            // Clean URL after detection
+            window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+            setTimeout(() => setShowPaymentSuccess(false), 5000);
+        }
+    }, []);
 
 
     useEffect(() => {
@@ -111,6 +122,24 @@ const UserProfile = () => {
             <UserHeader />
 
             <main className="max-w-[1200px] mx-auto px-6 py-10">
+                {/* Success Notification Overlay */}
+                {showPaymentSuccess && (
+                    <div className="mb-10 bg-primary/20 border border-primary/30 p-8 rounded-[2.5rem] flex items-center justify-between animate-fadeInDown shadow-[0_0_50px_rgba(13,242,89,0.1)]">
+                        <div className="flex items-center gap-6">
+                            <div className="size-14 rounded-2xl bg-primary/20 text-primary flex items-center justify-center border border-primary/20">
+                                <span className="material-symbols-outlined text-4xl">check_circle</span>
+                            </div>
+                            <div>
+                                <h4 className="text-xl font-black uppercase italic tracking-tight text-white">¡Membresía Activada!</h4>
+                                <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mt-1">El pago fue exitoso y tu acceso ha sido renovado. ¡A darle con toda!</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setShowPaymentSuccess(false)} className="text-slate-500 hover:text-white transition-colors">
+                            <span className="material-symbols-outlined text-2xl">close</span>
+                        </button>
+                    </div>
+                )}
+
                 {/* Header Perfil */}
                 <header className="flex flex-col md:flex-row items-center justify-between gap-8 mb-12 animate-fadeIn">
                     <div className="flex flex-col md:flex-row items-center gap-8">

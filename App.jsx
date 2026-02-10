@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, lazy, Suspense, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import MobileNav from './components/MobileNav';
 
@@ -25,6 +25,7 @@ const ResetPassword = lazy(() => import('./screens/ResetPassword'));
 const Store = lazy(() => import('./screens/Store'));
 const StoreAdmin = lazy(() => import('./screens/StoreAdmin'));
 const AgentDashboard = lazy(() => import('./screens/AgentDashboard'));
+const SubscriptionAdmin = lazy(() => import('./screens/SubscriptionAdmin'));
 
 import ProtectedRoute from './components/ProtectedRoute'; // Static import for High Order Component
 
@@ -49,6 +50,23 @@ const App = () => {
     streak: 12
   });
 
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    return saved ? saved === 'dark' : true;
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
+
+  const toggleDarkMode = () => setDarkMode(!darkMode);
+
   return (
     <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Suspense fallback={<PageLoader />}>
@@ -71,6 +89,7 @@ const App = () => {
             <Route path="/admin" element={<DashboardAdmin />} />
             <Route path="/accounting-admin" element={<AccountingAdmin />} />
             <Route path="/brand-settings" element={<BrandSettings />} />
+            <Route path="/subscription-admin" element={<SubscriptionAdmin />} />
             <Route path="/challenges-admin" element={<ChallengesAdmin />} />
             <Route path="/analytics-report" element={<AnalyticsReport />} />
             <Route path="/community-admin" element={<CommunityAdmin />} />
@@ -95,6 +114,16 @@ const App = () => {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Suspense>
+      <button
+        onClick={toggleDarkMode}
+        className="fixed bottom-24 right-6 z-[999] size-14 rounded-[2rem] bg-primary text-background-dark shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group"
+        title={darkMode ? "Pasar a Modo Claro" : "Pasar a Modo Oscuro"}
+      >
+        <span className="material-symbols-outlined text-3xl font-black">
+          {darkMode ? 'light_mode' : 'dark_mode'}
+        </span>
+      </button>
+
       <MobileNav />
     </HashRouter>
   );

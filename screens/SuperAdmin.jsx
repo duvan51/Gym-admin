@@ -27,6 +27,7 @@ const SuperAdmin = () => {
     const [showAddAgentModal, setShowAddAgentModal] = useState(false);
     const [showEditAgentModal, setShowEditAgentModal] = useState(false);
     const [editingAgent, setEditingAgent] = useState(null);
+    const [selectedGymHistory, setSelectedGymHistory] = useState(null);
     const [newAgentData, setNewAgentData] = useState({
         name: '',
         email: '',
@@ -49,6 +50,22 @@ const SuperAdmin = () => {
     const [error, setError] = useState(null);
     const [showEditModal, setShowEditModal] = useState(false);
     const [editingGym, setEditingGym] = useState(null);
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [newPaymentData, setNewPaymentData] = useState({
+        gym_id: '',
+        plan_id: '',
+        amount: 0,
+        payment_method: 'transferencia',
+        transaction_id: '',
+        notes: ''
+    });
+
+    const [paymentFilters, setPaymentFilters] = useState({
+        search: '',
+        month: '',
+        year: '',
+        agent: ''
+    });
     const [metrics, setMetrics] = useState({
         mrr: 0,
         activeGyms: 0,
@@ -86,7 +103,10 @@ const SuperAdmin = () => {
     const fetchAgents = async () => {
         const { data } = await supabase
             .from('saas_agents')
-            .select('*')
+            .select(`
+                *,
+                agent_commissions(amount, status)
+            `)
             .order('created_at', { ascending: false });
         if (data) setAgents(data);
     };
@@ -94,7 +114,12 @@ const SuperAdmin = () => {
     const fetchPayments = async () => {
         const { data } = await supabase
             .from('gym_payments')
-            .select('*, gyms(name), saas_plans(name)')
+            .select(`
+                *,
+                gyms(name, saas_agents(name)),
+                saas_plans(name),
+                agent_commissions(amount, status)
+            `)
             .order('payment_date', { ascending: false });
         if (data) setPayments(data);
     };
@@ -181,10 +206,18 @@ const SuperAdmin = () => {
     useEffect(() => {
         if (newGymData.startDate && newGymData.planId && plans.length > 0) {
             const selectedPlan = plans.find(p => p.id === newGymData.planId);
-            const duration = selectedPlan?.duration_days || 30;
+            const duration = selectedPlan?.duration_value || 1;
+            const unit = selectedPlan?.duration_unit || 'months';
+
             const start = new Date(newGymData.startDate);
             const end = new Date(start);
-            end.setDate(start.getDate() + duration);
+
+            if (unit === 'months') {
+                end.setMonth(start.getMonth() + duration);
+            } else {
+                end.setDate(start.getDate() + (selectedPlan?.duration_days || (duration * 30)));
+            }
+
             setNewGymData(prev => ({ ...prev, endDate: end.toISOString().split('T')[0] }));
         }
     }, [newGymData.startDate, newGymData.planId, plans]);
@@ -192,6 +225,38 @@ const SuperAdmin = () => {
 
     const formatCurrency = (val) => {
         return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
+    };
+
+    const generateStripeLink = async (gym) => {
+        try {
+            const plan = plans.find(p => p.id === gym.plan_id);
+            if (!plan) throw new Error("Plan no seleccionado o no válido");
+
+            const { data, error } = await supabase.functions.invoke('stripe-checkout', {
+                body: {
+                    planName: `Suscripción SaaS: ${plan.name} - ${gym.name}`,
+                    amount: plan.price_cop * 100, // Stripe usa centavos
+                    successUrl: `${window.location.origin}/#/login?success=true`,
+                    cancelUrl: `${window.location.origin}/#/login?cancel=true`,
+                    metadata: {
+                        gymId: gym.id,
+                        planId: plan.id,
+                        type: 'saas_subscription',
+                        isUpgrade: 'false',
+                        notes: 'Activación vía Enlace Directo'
+                    }
+                }
+            });
+
+            if (error) throw error;
+            if (data?.url) {
+                await navigator.clipboard.writeText(data.url);
+                alert('¡Enlace directo de Stripe generado y copiado! Envíalo al cliente. No necesita iniciar sesión para pagar.');
+            }
+        } catch (err) {
+            console.error("Error generating link:", err);
+            alert("Error al generar enlace: " + err.message);
+        }
     };
 
     const toggleGymStatus = async (id) => {
@@ -295,9 +360,9 @@ const SuperAdmin = () => {
                     owner_name: newGymData.owner,
                     plan_id: newGymData.planId,
                     agent_id: newGymData.agentId || null,
-                    start_date: newGymData.startDate,
-                    end_date: newGymData.endDate,
-                    status: 'active'
+                    start_date: null, // No inicia hasta el pago
+                    end_date: null,   // No vence hasta el pago
+                    status: 'pending' // Estado inicial de espera
                 }])
                 .select()
                 .single();
@@ -322,7 +387,9 @@ const SuperAdmin = () => {
                 gym_id: gymData.id,
                 plan_id: selectedPlan.id,
                 amount: selectedPlan.price_cop,
-                status: 'completed'
+                status: 'completed',
+                payment_method: 'transferencia',
+                notes: 'Pago inicial de activación SaaS'
             }]);
 
             // Success
@@ -333,6 +400,116 @@ const SuperAdmin = () => {
             setNewGymData({ name: '', owner: '', email: '', password: '', planId: plans[0]?.id, startDate: today });
         } catch (err) {
             setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRecordPayment = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            // 1. Insertar pago y obtener ID
+            const { data: payment, error: payError } = await supabase.from('gym_payments').insert([{
+                gym_id: newPaymentData.gym_id,
+                plan_id: newPaymentData.plan_id,
+                amount: newPaymentData.amount,
+                payment_method: newPaymentData.payment_method,
+                transaction_id: newPaymentData.transaction_id,
+                notes: newPaymentData.notes,
+                status: 'completed',
+                payment_date: new Date().toISOString()
+            }]).select().single();
+
+            if (payError) throw payError;
+
+            // 2. Extender vigencia del Gimnasio
+            const gym = gyms.find(g => g.id === newPaymentData.gym_id);
+            const plan = plans.find(p => p.id === newPaymentData.plan_id);
+
+            const currentEnd = gym.endDate ? new Date(gym.endDate) : new Date();
+            const startFrom = currentEnd > new Date() ? currentEnd : new Date();
+            const newEnd = new Date(startFrom);
+
+            const duration = plan?.duration_value || 1;
+            const unit = plan?.duration_unit || 'months';
+
+            if (unit === 'months') {
+                newEnd.setMonth(newEnd.getMonth() + duration);
+            } else {
+                newEnd.setDate(newEnd.getDate() + (plan?.duration_days || (duration * 30)));
+            }
+
+            const { error: gymError } = await supabase
+                .from('gyms')
+                .update({
+                    end_date: newEnd.toISOString(),
+                    status: 'active',
+                    plan_id: plan.id
+                })
+                .eq('id', gym.id);
+
+            if (gymError) throw gymError;
+
+            // 3. Registrar Comisión si hay agente asignado
+            if (gym.agent_id) {
+                const { data: agent } = await supabase.from('saas_agents').select('commission_rate').eq('id', gym.agent_id).single();
+                if (agent && agent.commission_rate > 0) {
+                    const commissionAmount = (Number(newPaymentData.amount) * agent.commission_rate) / 100;
+                    await supabase.from('agent_commissions').insert({
+                        agent_id: gym.agent_id,
+                        gym_id: gym.id,
+                        payment_id: payment.id,
+                        amount: commissionAmount,
+                        commission_rate: agent.commission_rate,
+                        status: 'pending'
+                    });
+                }
+            }
+
+            // 4. Registrar Log de Auditoría
+            const { data: { user } } = await supabase.auth.getUser();
+            await supabase.from('gym_activity_logs').insert([{
+                gym_id: gym.id,
+                action: 'payment_renewal',
+                performed_by: user?.id,
+                details: {
+                    amount: newPaymentData.amount,
+                    plan: plan.name,
+                    transaction: newPaymentData.transaction_id
+                }
+            }]);
+
+            await fetchPayments();
+            await fetchGyms();
+            await fetchMetrics();
+            setShowPaymentModal(false);
+            alert('Pago registrado y comisión asignada con éxito');
+
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+    const handlePayoutAgent = async (agentId) => {
+        if (!window.confirm('¿Confirmas que has realizado el pago a este agente y deseas liquidar sus comisiones pendientes?')) return;
+
+        setLoading(true);
+        try {
+            const { error } = await supabase
+                .from('agent_commissions')
+                .update({ status: 'paid' })
+                .eq('agent_id', agentId)
+                .eq('status', 'pending');
+
+            if (error) throw error;
+
+            await fetchAgents();
+            await fetchPayments();
+            alert('Comisiones liquidadas con éxito');
+        } catch (err) {
+            alert('Error al liquidar: ' + err.message);
         } finally {
             setLoading(false);
         }
@@ -472,6 +649,22 @@ const SuperAdmin = () => {
         }
     };
 
+    const fetchGymHistory = async (gymId) => {
+        const { data } = await supabase
+            .from('gym_payments')
+            .select('*, saas_plans(name, duration_days)')
+            .eq('gym_id', gymId)
+            .order('payment_date', { ascending: false });
+        return data || [];
+    };
+
+    const handleViewGymHistory = async (gym) => {
+        setLoading(true);
+        const history = await fetchGymHistory(gym.id);
+        setSelectedGymHistory({ gym, history });
+        setLoading(false);
+    };
+
     const handleUpdatePlan = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -508,9 +701,9 @@ const SuperAdmin = () => {
     );
 
     return (
-        <div className="min-h-screen bg-background-dark text-white font-display flex flex-col">
+        <div className="min-h-screen bg-background-light dark:bg-background-dark text-slate-800 dark:text-white font-display flex flex-col transition-colors duration-300">
             {/* SuperAdmin Header */}
-            <header className="sticky top-0 z-50 w-full border-b border-white/5 bg-background-dark/80 backdrop-blur-xl px-10 py-6 flex items-center justify-between">
+            <header className="sticky top-0 z-50 w-full border-b border-black/5 dark:border-white/5 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-xl px-10 py-6 flex items-center justify-between transition-colors">
                 <div className="flex items-center gap-6">
                     <div className="bg-primary-blue/20 p-3 rounded-2xl border border-primary-blue/30 shadow-[0_0_20px_rgba(25,127,230,0.2)]">
                         <span className="material-symbols-outlined text-primary-blue text-3xl font-black">admin_panel_settings</span>
@@ -521,7 +714,7 @@ const SuperAdmin = () => {
                     </div>
                 </div>
 
-                <nav className="flex items-center gap-2 bg-surface-dark p-1.5 rounded-2xl border border-white/5">
+                <nav className="flex items-center gap-2 bg-surface-light dark:bg-surface-dark p-1.5 rounded-2xl border border-black/5 dark:border-white/5 transition-colors">
                     {[
                         { id: 'metrics', label: 'Métricas', icon: 'analytics' },
                         { id: 'gyms', label: 'Gimnasios', icon: 'domain' },
@@ -559,21 +752,21 @@ const SuperAdmin = () => {
                                 { label: 'Proyección Anual', value: formatCurrency(metrics.projection), trend: 'Estable', icon: 'query_stats', color: 'text-purple-500' }
                             ].map((stat, i) => (
 
-                                <div key={i} className="bg-surface-dark border border-border-dark p-8 rounded-[2.5rem] relative overflow-hidden group">
-                                    <span className={`material-symbols-outlined absolute top-6 right-6 text-4xl opacity-10 ${stat.color}`}>{stat.icon}</span>
+                                <div key={i} className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark p-8 rounded-[2.5rem] relative overflow-hidden group transition-all shadow-sm dark:shadow-none">
+                                    <span className={`material-symbols-outlined absolute top-6 right-6 text-4xl opacity-10 dark:opacity-20 ${stat.color}`}>{stat.icon}</span>
                                     <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">{stat.label}</p>
-                                    <h3 className="text-3xl font-black italic">{stat.value}</h3>
+                                    <h3 className="text-3xl font-black italic text-slate-800 dark:text-white transition-colors">{stat.value}</h3>
                                     <p className={`text-[10px] font-bold mt-2 ${stat.trend.includes('+') ? 'text-primary' : 'text-slate-400'}`}>{stat.trend} este mes</p>
                                 </div>
                             ))}
                         </section>
 
-                        <div className="bg-surface-dark border border-border-dark rounded-[2.5rem] p-10">
-                            <h3 className="text-xl font-black uppercase italic mb-8">Crecimiento Mensual Recurrente</h3>
+                        <div className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-[2.5rem] p-10 transition-all shadow-sm dark:shadow-none">
+                            <h3 className="text-xl font-black uppercase italic mb-8 text-slate-800 dark:text-white transition-colors">Crecimiento Mensual Recurrente</h3>
                             <div className="h-64 flex items-end gap-4">
                                 {[30, 45, 35, 70, 65, 80, 95, 100, 115, 130].map((h, i) => (
-                                    <div key={i} className="flex-1 bg-primary-blue/20 rounded-t-xl relative group" style={{ height: `${h}%` }}>
-                                        <div className="absolute inset-0 bg-primary-blue scale-y-0 group-hover:scale-y-100 transition-transform origin-bottom rounded-t-xl opacity-40"></div>
+                                    <div key={i} className="flex-1 bg-primary-blue/10 dark:bg-primary-blue/20 rounded-t-xl relative group transition-colors" style={{ height: `${h}%` }}>
+                                        <div className="absolute inset-0 bg-primary-blue scale-y-0 group-hover:scale-y-100 transition-transform origin-bottom rounded-t-xl opacity-20 dark:opacity-40"></div>
                                     </div>
                                 ))}
                             </div>
@@ -600,62 +793,122 @@ const SuperAdmin = () => {
                             </button>
                         </header>
 
-                        <div className="bg-surface-dark border border-border-dark rounded-[2.5rem] overflow-hidden shadow-2xl">
+                        <div className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-[2.5rem] overflow-hidden shadow-sm dark:shadow-2xl transition-all">
                             <table className="w-full text-left">
-                                <thead className="bg-background-dark/50 border-b border-border-dark">
+                                <thead className="bg-black/5 dark:bg-background-dark/50 border-b border-border-light dark:border-border-dark transition-colors">
                                     <tr>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Unidad de Negocio</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Plan SaaS</th>
+                                        <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Vendedor</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Inicia</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-primary-blue tracking-widest">Vence el</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest text-center">Estado</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest text-right">Acciones</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-white/5">
+                                <tbody className="divide-y divide-black/5 dark:divide-white/5 transition-colors">
                                     {gyms.map(gym => {
                                         const isExpired = new Date(gym.endDate) < new Date();
                                         return (
-                                            <tr key={gym.id} className="hover:bg-white/[0.02] transition-colors group">
+                                            <tr key={gym.id} className="hover:bg-black/[0.01] dark:hover:bg-white/[0.02] transition-colors group">
                                                 <td className="px-8 py-6">
                                                     <div className="flex items-center gap-4">
-                                                        <div className={`size-12 rounded-2xl ${gym.status === 'active' ? 'bg-primary-blue/10 text-primary-blue' : 'bg-red-500/10 text-red-500'} flex items-center justify-center border border-white/5 group-hover:border-primary-blue/30 transition-all`}>
+                                                        <div className={`size-12 rounded-2xl ${gym.status === 'active' ? 'bg-primary-blue/10 text-primary-blue' : 'bg-red-500/10 text-red-500'} flex items-center justify-center border border-black/5 dark:border-white/5 group-hover:border-primary-blue/30 transition-all`}>
                                                             <span className="material-symbols-outlined">{gym.status === 'active' ? 'store' : 'storefront'}</span>
                                                         </div>
                                                         <div>
-                                                            <p className="font-black uppercase italic text-sm">{gym.name}</p>
+                                                            <p className="font-black uppercase italic text-sm text-slate-800 dark:text-white transition-colors">{gym.name}</p>
                                                             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{gym.owner}</p>
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/10 bg-white/5`}>
+                                                    <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-slate-600 dark:text-slate-300 transition-colors`}>
                                                         {gym.plan}
                                                     </span>
                                                 </td>
+                                                <td className="px-8 py-6">
+                                                    <p className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-tighter mb-1 transition-colors">Agente</p>
+                                                    <p className="text-xs font-bold text-slate-700 dark:text-white uppercase italic transition-colors">{gym.agent_name}</p>
+                                                </td>
                                                 <td className="px-8 py-6 font-bold text-sm text-slate-400">
-                                                    {new Date(gym.startDate).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                    {gym.startDate ? new Date(gym.startDate).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <p className="text-[10px] font-black uppercase text-slate-500 tracking-tighter mb-1">Vendedor</p>
-                                                    <p className="text-xs font-bold text-white uppercase italic">{gym.agent_name}</p>
-                                                </td>
-                                                <td className="px-8 py-6">
-                                                    <div className={`flex items-center gap-2 font-black italic text-sm ${isExpired ? 'text-red-500' : 'text-white'}`}>
+                                                    <div className={`flex items-center gap-2 font-black italic text-sm transition-colors ${isExpired ? 'text-red-500' : 'text-slate-600 dark:text-white'}`}>
                                                         <span className="material-symbols-outlined text-xs">event</span>
-                                                        {new Date(gym.endDate).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                        {gym.endDate ? new Date(gym.endDate).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <div className={`flex items-center justify-center gap-2 ${gym.status === 'active' ? 'text-primary' : 'text-red-500'}`}>
-                                                        <span className={`size-2 rounded-full ${gym.status === 'active' ? 'bg-primary shadow-[0_0_10px_rgba(13,242,89,0.5)]' : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]'}`}></span>
-                                                        <span className="text-[10px] font-black uppercase italic tracking-widest">{gym.status === 'active' ? 'ACTIVO' : 'VENCIDO'}</span>
+                                                    <div className={`flex items-center justify-center gap-2 ${gym.status === 'active' ? 'text-primary' :
+                                                        gym.status === 'pending' ? 'text-amber-500' : 'text-red-500'
+                                                        }`}>
+                                                        <span className={`size-2 rounded-full ${gym.status === 'active' ? 'bg-primary shadow-[0_0_10px_rgba(13,242,89,0.5)]' :
+                                                            gym.status === 'pending' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]' :
+                                                                'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]'
+                                                            }`}></span>
+                                                        <span className="text-[10px] font-black uppercase italic tracking-widest">
+                                                            {gym.status === 'active' ? 'ACTIVO' : gym.status === 'pending' ? 'POR PAGAR' : 'DESACTIVADO'}
+                                                        </span>
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6 text-right">
                                                     <div className="flex justify-end gap-3">
-                                                        <button onClick={() => toggleGymStatus(gym.id)} className="p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-white transition-all">
+                                                        <button
+                                                            onClick={() => handleViewGymHistory(gym)}
+                                                            className="p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-primary-blue transition-all"
+                                                            title="Ver Historial de Pagos"
+                                                        >
+                                                            <span className="material-symbols-outlined text-lg">history</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => toggleGymStatus(gym.id)}
+                                                            className="p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-white transition-all"
+                                                            title={gym.status === 'active' ? 'Pausar Gym' : 'Activar Gym'}
+                                                        >
                                                             <span className="material-symbols-outlined text-lg">{gym.status === 'active' ? 'pause_circle' : 'play_circle'}</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => generateStripeLink(gym)}
+                                                            className="p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-primary-blue transition-all"
+                                                            title="Generar Enlace de Stripe Directo"
+                                                        >
+                                                            <span className="material-symbols-outlined text-lg">credit_card_heart</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                const paymentLink = `${window.location.origin}/#/subscription-admin?gymId=${gym.id}&autoPay=true`;
+                                                                try {
+                                                                    await navigator.clipboard.writeText(paymentLink);
+                                                                    alert('Enlace de activación copiado (Requiere Login).');
+                                                                } catch (err) {
+                                                                    console.error('Error al copiar:', err);
+                                                                    alert('Enlace: ' + paymentLink);
+                                                                }
+                                                            }}
+                                                            className="p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-amber-500 transition-all"
+                                                            title="Copiar Enlace de Panel (Requiere Login)"
+                                                        >
+                                                            <span className="material-symbols-outlined text-lg">link</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                const plan = plans.find(p => p.id === gym.plan_id);
+                                                                setNewPaymentData({
+                                                                    gym_id: gym.id,
+                                                                    plan_id: gym.plan_id,
+                                                                    amount: plan?.price_cop || 0,
+                                                                    payment_method: 'transferencia',
+                                                                    transaction_id: '',
+                                                                    notes: 'Pago inicial / Activación manual'
+                                                                });
+                                                                setShowPaymentModal(true);
+                                                            }}
+                                                            className="p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-primary transition-all"
+                                                            title="Registrar Pago / Activar"
+                                                        >
+                                                            <span className="material-symbols-outlined text-lg">add_card</span>
                                                         </button>
                                                         <button
                                                             onClick={() => {
@@ -684,42 +937,129 @@ const SuperAdmin = () => {
 
                 {!loading && activeTab === 'payments' && (
                     <div className="space-y-8 animate-fadeIn">
-                        <div>
-                            <h2 className="text-3xl font-black uppercase italic tracking-tight">Historial de <span className="text-primary-blue">Pagos SaaS</span></h2>
-                            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Registro cronológico de ingresos por suscripciones</p>
+                        <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+                            <div>
+                                <h2 className="text-3xl font-black uppercase italic tracking-tight">Historial de <span className="text-primary-blue">Pagos SaaS</span></h2>
+                                <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Registro cronológico de ingresos por suscripciones</p>
+                            </div>
+                        </header>
+
+                        {/* Payment Filters Bar */}
+                        <div className="bg-surface-light dark:bg-surface-dark border border-black/5 dark:border-white/5 p-6 rounded-[2rem] grid grid-cols-1 md:grid-cols-4 gap-4 transition-all shadow-sm dark:shadow-none">
+                            <div className="relative">
+                                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">search</span>
+                                <input
+                                    type="text"
+                                    placeholder="Buscar Gimnasio..."
+                                    value={paymentFilters.search}
+                                    onChange={(e) => setPaymentFilters({ ...paymentFilters, search: e.target.value })}
+                                    className="w-full bg-black/5 dark:bg-background-dark/50 border border-black/5 dark:border-white/5 rounded-xl py-3 pl-10 pr-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-primary-blue/50 transition-all text-slate-800 dark:text-white"
+                                />
+                            </div>
+                            <select
+                                value={paymentFilters.month}
+                                onChange={(e) => setPaymentFilters({ ...paymentFilters, month: e.target.value })}
+                                className="bg-black/5 dark:bg-background-dark/50 border border-black/5 dark:border-white/5 rounded-xl py-3 px-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-primary-blue/50 transition-all cursor-pointer text-slate-600 dark:text-slate-400"
+                            >
+                                <option value="">Mes (Todos)</option>
+                                {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'].map((m, i) => (
+                                    <option key={i} value={i}>{m}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={paymentFilters.year}
+                                onChange={(e) => setPaymentFilters({ ...paymentFilters, year: e.target.value })}
+                                className="bg-black/5 dark:bg-background-dark/50 border border-black/5 dark:border-white/5 rounded-xl py-3 px-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-primary-blue/50 transition-all cursor-pointer text-slate-600 dark:text-slate-400"
+                            >
+                                <option value="">Año (Todos)</option>
+                                {[2024, 2025, 2026].map(y => (
+                                    <option key={y} value={y}>{y}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={paymentFilters.agent}
+                                onChange={(e) => setPaymentFilters({ ...paymentFilters, agent: e.target.value })}
+                                className="bg-black/5 dark:bg-background-dark/50 border border-black/5 dark:border-white/5 rounded-xl py-3 px-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-primary-blue/50 transition-all cursor-pointer text-slate-600 dark:text-slate-400"
+                            >
+                                <option value="">Agente (Todos)</option>
+                                {agents.map(a => (
+                                    <option key={a.id} value={a.id}>{a.name}</option>
+                                ))}
+                            </select>
                         </div>
 
-                        <div className="bg-surface-dark border border-border-dark rounded-[2.5rem] overflow-hidden">
+                        <div className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-[2.5rem] overflow-hidden transition-all shadow-sm dark:shadow-none">
                             <table className="w-full text-left">
-                                <thead className="bg-background-dark/50 border-b border-border-dark">
+                                <thead className="bg-black/5 dark:bg-background-dark/50 border-b border-border-light dark:border-border-dark transition-colors">
                                     <tr>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Gimnasio</th>
+                                        <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Vendedor / Comisión</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Plan</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Monto</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Fecha</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest text-right">Estado</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-white/5">
-                                    {payments.length === 0 ? (
+                                <tbody className="divide-y divide-black/5 dark:divide-white/5 transition-colors">
+
+
+                                    {(payments || [])
+                                        .filter(p => {
+                                            const matchesSearch = (p.gyms?.name || '').toLowerCase().includes(paymentFilters.search.toLowerCase());
+                                            const date = new Date(p.payment_date);
+                                            const matchesMonth = paymentFilters.month === '' || date.getMonth() === parseInt(paymentFilters.month);
+                                            const matchesYear = paymentFilters.year === '' || date.getFullYear() === parseInt(paymentFilters.year);
+                                            const matchesAgent = paymentFilters.agent === '' || p.gyms?.agent_id === paymentFilters.agent;
+                                            return matchesSearch && matchesMonth && matchesYear && matchesAgent;
+                                        })
+                                        .length === 0 ? (
                                         <tr>
-                                            <td colSpan="5" className="px-8 py-20 text-center text-slate-500 font-bold uppercase tracking-widest">No hay pagos registrados</td>
+                                            <td colSpan="6" className="px-8 py-20 text-center text-slate-500 font-bold uppercase tracking-widest">No hay pagos registrados o que coincidan con los filtros</td>
                                         </tr>
-                                    ) : payments.map(pay => (
-                                        <tr key={pay.id} className="hover:bg-white/[0.02]">
-                                            <td className="px-8 py-6 font-black uppercase italic text-sm text-white">{pay.gyms?.name}</td>
-                                            <td className="px-8 py-6">
-                                                <span className="bg-white/5 border border-white/10 px-3 py-1 rounded-lg text-[10px] font-black uppercase">{pay.saas_plans?.name}</span>
-                                            </td>
-                                            <td className="px-8 py-6 font-black text-primary-blue">{formatCurrency(pay.amount)}</td>
-                                            <td className="px-8 py-6 text-slate-400 text-xs font-bold">
-                                                {new Date(pay.payment_date).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                            </td>
-                                            <td className="px-8 py-6 text-right">
-                                                <span className="bg-primary/20 text-primary border border-primary/30 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter">Completado</span>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    ) : (
+                                        payments
+                                            .filter(p => {
+                                                const matchesSearch = (p.gyms?.name || '').toLowerCase().includes(paymentFilters.search.toLowerCase());
+                                                const date = new Date(p.payment_date);
+                                                const matchesMonth = paymentFilters.month === '' || date.getMonth() === parseInt(paymentFilters.month);
+                                                const matchesYear = paymentFilters.year === '' || date.getFullYear() === parseInt(paymentFilters.year);
+                                                const matchesAgent = paymentFilters.agent === '' || p.gyms?.agent_id === paymentFilters.agent;
+                                                return matchesSearch && matchesMonth && matchesYear && matchesAgent;
+                                            })
+                                            .map(payment => (
+                                                <tr key={payment.id} className="hover:bg-black/[0.01] dark:hover:bg-white/[0.02] transition-colors">
+                                                    <td className="px-8 py-6">
+                                                        <p className="font-black uppercase italic text-sm text-slate-800 dark:text-white transition-colors">{payment.gyms?.name || 'Gimnasio Desconocido'}</p>
+                                                        <p className="text-[9px] text-slate-500 font-bold uppercase mt-1">Ref: {payment.transaction_id || 'Manual'}</p>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <p className="text-xs font-bold text-slate-700 dark:text-white uppercase italic transition-colors">{payment.gyms?.saas_agents?.name || 'Venta Directa'}</p>
+                                                        {payment.agent_commissions?.[0] && (
+                                                            <p className="text-[10px] text-primary-blue font-black uppercase mt-1">
+                                                                Comisión: {formatCurrency(payment.agent_commissions[0].amount)}
+                                                            </p>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <span className="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 px-3 py-1 rounded-lg text-[10px] font-black uppercase text-slate-500 dark:text-slate-300 transition-colors">
+                                                            {payment.saas_plans?.name || 'Personalizado'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <p className="text-slate-800 dark:text-white font-black italic text-lg transition-colors">{formatCurrency(payment.amount)}</p>
+                                                        <p className="text-[9px] text-slate-500 font-bold uppercase">{payment.payment_method}</p>
+                                                    </td>
+                                                    <td className="px-8 py-6 font-bold text-sm text-slate-400">
+                                                        {new Date(payment.payment_date).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                    </td>
+                                                    <td className="px-8 py-6 text-right">
+                                                        <span className="px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-primary/20 text-primary border border-primary/30">
+                                                            {payment.status === 'completed' ? 'Completado' : payment.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -741,9 +1081,11 @@ const SuperAdmin = () => {
                             </button>
                         </header>
 
-                        <div className="bg-surface-dark border border-border-dark rounded-[2.5rem] overflow-hidden">
+                        <div className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-[2.5rem] overflow-hidden transition-all shadow-sm dark:shadow-none">
+
                             <table className="w-full text-left">
-                                <thead className="bg-background-dark/50 border-b border-border-dark">
+                                <thead className="bg-black/5 dark:bg-background-dark/50 border-b border-border-light dark:border-border-dark transition-colors">
+
                                     <tr>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Agente</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest">Ventas Totales</th>
@@ -752,9 +1094,11 @@ const SuperAdmin = () => {
                                         <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-500 tracking-widest text-right">Acciones</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-white/5">
+                                <tbody className="divide-y divide-black/5 dark:divide-white/5 transition-colors">
                                     {agents.length === 0 ? (
+
                                         <tr>
+
                                             <td colSpan="5" className="px-8 py-20 text-center text-slate-500 font-bold uppercase tracking-widest">No hay agentes registrados</td>
                                         </tr>
                                     ) : agents.map(agent => {
@@ -766,23 +1110,43 @@ const SuperAdmin = () => {
                                         const commission = totalMrr * (agent.commission_rate / 100);
 
                                         return (
-                                            <tr key={agent.id} className="hover:bg-white/[0.02] transition-colors group">
+                                            <tr key={agent.id} className="hover:bg-black/[0.01] dark:hover:bg-white/[0.02] transition-colors group">
                                                 <td className="px-8 py-6">
                                                     <div className="flex items-center gap-4">
-                                                        <div className="size-10 rounded-xl bg-primary-blue/10 text-primary-blue flex items-center justify-center">
+                                                        <div className="size-10 rounded-xl bg-primary-blue/10 text-primary-blue flex items-center justify-center border border-black/5 dark:border-white/5">
                                                             <span className="material-symbols-outlined">account_circle</span>
                                                         </div>
                                                         <div>
-                                                            <p className="font-black uppercase italic text-sm">{agent.name}</p>
+                                                            <p className="font-black uppercase italic text-sm text-slate-800 dark:text-white transition-colors">{agent.name}</p>
                                                             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{agent.email}</p>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-6 font-bold text-sm">{agentGyms.length} Gyms</td>
-                                                <td className="px-8 py-6 font-bold text-sm text-slate-400">{formatCurrency(totalMrr)}</td>
+                                                <td className="px-8 py-6 font-bold text-sm text-slate-700 dark:text-white transition-colors">{agentGyms.length} Gyms</td>
+                                                <td className="px-8 py-6 font-bold text-sm text-slate-400 dark:text-slate-500 transition-colors">{formatCurrency(totalMrr)}</td>
                                                 <td className="px-8 py-6">
-                                                    <p className="text-primary font-black italic text-lg">{formatCurrency(commission)}</p>
-                                                    <p className="text-[8px] font-black text-slate-500 uppercase">{agent.commission_rate}% Mensual Proyectado</p>
+                                                    {(() => {
+                                                        const pending = (agent.agent_commissions || [])
+                                                            .filter(c => c.status === 'pending')
+                                                            .reduce((acc, c) => acc + Number(c.amount), 0);
+
+                                                        return (
+                                                            <>
+                                                                <p className="text-primary font-black italic text-lg">{formatCurrency(pending)}</p>
+                                                                <p className="text-[8px] font-black text-slate-500 uppercase">Pendiente de Liquidar</p>
+                                                                {pending > 0 && (
+                                                                    <button
+                                                                        onClick={() => handlePayoutAgent(agent.id)}
+                                                                        className="mt-2 flex items-center gap-1 text-[8px] font-black text-primary-blue hover:text-blue-600 dark:hover:text-white uppercase tracking-widest transition-colors"
+
+                                                                    >
+                                                                        <span className="material-symbols-outlined text-xs">payments</span>
+                                                                        Liquidar saldo
+                                                                    </button>
+                                                                )}
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="px-8 py-6 text-right">
                                                     <button
@@ -790,7 +1154,7 @@ const SuperAdmin = () => {
                                                             setEditingAgent(agent);
                                                             setShowEditAgentModal(true);
                                                         }}
-                                                        className="p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-white transition-all">
+                                                        className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-white transition-all">
                                                         <span className="material-symbols-outlined">edit</span>
                                                     </button>
                                                 </td>
@@ -801,557 +1165,810 @@ const SuperAdmin = () => {
                             </table>
                         </div>
                     </div>
-                )}
-                {!loading && activeTab === 'pricing' && (
-                    <div className="space-y-12 animate-fadeIn max-w-6xl mx-auto">
-                        <header className="flex justify-between items-end">
-                            <div className="text-left">
-                                <h2 className="text-4xl font-black uppercase italic mb-4 tracking-tighter">Esquema de <span className="text-primary-blue">Tarifas SaaS</span></h2>
-                                <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-sm">Define el costo de suscripción por gimnasio</p>
-                            </div>
-                            <button
-                                onClick={() => setShowAddPlanModal(true)}
-                                className="bg-primary hover:bg-green-600 text-background-dark px-8 py-4 rounded-2xl flex items-center gap-3 transition-all font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20"
-                            >
-                                <span className="material-symbols-outlined">add_card</span>
-                                Nuevo Plan
-                            </button>
-                        </header>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            {plans.map(plan => (
-                                <div key={plan.id} className="bg-surface-dark border-2 border-border-dark rounded-[3rem] p-10 flex flex-col items-center text-center group hover:border-primary-blue/50 transition-all hover:-translate-y-2">
-                                    <div className="size-16 rounded-3xl bg-white/5 flex items-center justify-center mb-6 group-hover:bg-primary-blue/20 group-hover:text-primary-blue transition-all">
-                                        <span className="material-symbols-outlined text-3xl font-black">inventory_2</span>
-                                    </div>
-                                    <h3 className="text-2xl font-black uppercase italic mb-2 tracking-tight">{plan.name}</h3>
-                                    <div className="text-3xl font-black text-white mb-4 italic">{formatCurrency(plan.price_cop)}<span className="text-xs text-slate-500 font-bold uppercase tracking-widest not-italic ml-1">/mes</span></div>
-                                    <div className="w-full h-px bg-white/5 mb-8"></div>
-                                    <ul className="space-y-4 mb-10 text-xs font-bold uppercase tracking-widest text-slate-400">
-                                        <li className="flex items-center gap-2 justify-center"><span className="material-symbols-outlined text-primary-blue text-lg">check_circle</span> {plan.gym_limit || 'Sin límite'}</li>
-                                        <li className="flex items-center gap-2 justify-center"><span className="material-symbols-outlined text-primary-blue text-lg">check_circle</span> App iOS/Android</li>
-                                        <li className="flex items-center gap-2 justify-center"><span className="material-symbols-outlined text-primary-blue text-lg">check_circle</span> Backend Cloud</li>
-                                    </ul>
-                                    <button
-                                        onClick={() => {
-                                            setEditingPlan(plan);
-                                            setShowEditPlanModal(true);
-                                        }}
-                                        className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest hover:bg-primary-blue hover:text-white transition-all">
-                                        Editar Tarifario
-                                    </button>
+                )
+                }
+                {
+                    !loading && activeTab === 'pricing' && (
+                        <div className="space-y-12 animate-fadeIn max-w-6xl mx-auto">
+                            <header className="flex justify-between items-end">
+                                <div className="text-left">
+                                    <h2 className="text-4xl font-black uppercase italic mb-4 tracking-tighter">Esquema de <span className="text-primary-blue">Tarifas SaaS</span></h2>
+                                    <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-sm">Define el costo de suscripción por gimnasio</p>
                                 </div>
-                            ))}
+                                <button
+                                    onClick={() => setShowAddPlanModal(true)}
+                                    className="bg-primary hover:bg-green-600 text-background-dark px-8 py-4 rounded-2xl flex items-center gap-3 transition-all font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20"
+                                >
+                                    <span className="material-symbols-outlined">add_card</span>
+                                    Nuevo Plan
+                                </button>
+                            </header>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                {plans.map(plan => (
+                                    <div key={plan.id} className="bg-surface-light dark:bg-surface-dark border-2 border-border-light dark:border-border-dark rounded-[3rem] p-10 flex flex-col items-center text-center group hover:border-primary-blue/50 transition-all hover:-translate-y-2 shadow-sm dark:shadow-none">
+                                        <div className="size-16 rounded-3xl bg-black/5 dark:bg-white/5 flex items-center justify-center mb-6 group-hover:bg-primary-blue/20 group-hover:text-primary-blue transition-all">
+                                            <span className="material-symbols-outlined text-3xl font-black">inventory_2</span>
+                                        </div>
+                                        <h3 className="text-2xl font-black uppercase italic mb-2 tracking-tight text-slate-800 dark:text-white transition-colors">{plan.name}</h3>
+                                        <div className="text-3xl font-black text-slate-800 dark:text-white mb-4 italic transition-colors">{formatCurrency(plan.price_cop)}<span className="text-xs text-slate-500 font-bold uppercase tracking-widest not-italic ml-1">/mes</span></div>
+                                        <div className="w-full h-px bg-black/5 dark:bg-white/5 mb-8"></div>
+                                        <ul className="space-y-4 mb-10 text-xs font-bold uppercase tracking-widest text-slate-400">
+                                            <li className="flex items-center gap-2 justify-center"><span className="material-symbols-outlined text-primary-blue text-lg">check_circle</span> {plan.gym_limit || 'Sin límite'}</li>
+                                            <li className="flex items-center gap-2 justify-center"><span className="material-symbols-outlined text-primary-blue text-lg">check_circle</span> App iOS/Android</li>
+                                            <li className="flex items-center gap-2 justify-center"><span className="material-symbols-outlined text-primary-blue text-lg">check_circle</span> Backend Cloud</li>
+                                        </ul>
+                                        <button
+                                            onClick={() => {
+                                                setEditingPlan(plan);
+                                                setShowEditPlanModal(true);
+                                            }}
+                                            className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest hover:bg-primary-blue hover:text-white transition-all">
+                                            Editar Tarifario
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                )}
-            </main>
+                    )
+                }
+            </main >
 
             {/* Modal: Registrar Gimnasio */}
-            {showAddModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-                    <div className="absolute inset-0 bg-background-dark/95 backdrop-blur-xl" onClick={() => setShowAddModal(false)}></div>
-                    <div className="relative bg-surface-dark border border-border-dark w-full max-w-3xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp">
-                        <header className="bg-background-dark/50 p-10 border-b border-border-dark flex justify-between items-center">
-                            <div>
-                                <h3 className="text-3xl font-black italic uppercase tracking-tighter">Nuevo <span className="text-primary-blue">Gimnasio Partner</span></h3>
-                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Configuración inicial de cuenta corporativa</p>
-                            </div>
-                            <button onClick={() => setShowAddModal(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-4xl">close</span></button>
-                        </header>
-
-                        <form onSubmit={handleAddGym} className="p-10 space-y-8">
-                            {error && (
-                                <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center gap-3">
-                                    <span className="material-symbols-outlined text-red-500">error</span>
-                                    <p className="text-red-500 text-xs font-bold uppercase tracking-widest">{error}</p>
-                                </div>
-                            )}
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre Comercial</label>
-                                    <input
-                                        required
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        placeholder="Ej: Iron Fitness Center"
-                                        value={newGymData.name}
-                                        onChange={e => setNewGymData({ ...newGymData, name: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Dueño / Representante</label>
-                                    <input
-                                        required
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        placeholder="Nombre del propietario"
-                                        value={newGymData.owner}
-                                        onChange={e => setNewGymData({ ...newGymData, owner: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Email de Acceso Gym</label>
-                                    <input
-                                        type="email"
-                                        required
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        placeholder="admin@gym.com"
-                                        value={newGymData.email}
-                                        onChange={e => setNewGymData({ ...newGymData, email: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Contraseña Provisional</label>
-                                    <input
-                                        type="password"
-                                        required
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        placeholder="••••••••"
-                                        value={newGymData.password}
-                                        onChange={e => setNewGymData({ ...newGymData, password: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Fecha de Alta</label>
-                                    <input
-                                        type="date"
-                                        required
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-white scheme-dark"
-                                        value={newGymData.startDate}
-                                        onChange={e => setNewGymData({ ...newGymData, startDate: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Suscripción SaaS</label>
-                                    <select
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all appearance-none"
-                                        value={newGymData.planId}
-                                        onChange={e => setNewGymData({ ...newGymData, planId: e.target.value })}
-                                    >
-                                        {plans.map(p => (
-                                            <option key={p.id} value={p.id}>{p.name} - {formatCurrency(p.price_cop)}/mes</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Agente Vendedor (20% Com.)</label>
-                                    <select
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all appearance-none"
-                                        value={newGymData.agentId}
-                                        onChange={e => setNewGymData({ ...newGymData, agentId: e.target.value })}
-                                    >
-                                        <option value="">Venta Directa (Sin Agente)</option>
-                                        {agents.map(a => (
-                                            <option key={a.id} value={a.id}>{a.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="bg-primary-blue/5 border border-primary-blue/20 rounded-3xl p-6 flex justify-between items-center text-center">
+            {
+                showAddModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                        <div className="absolute inset-0 bg-slate-900/60 dark:bg-background-dark/95 backdrop-blur-md transition-all" onClick={() => setShowAddModal(false)}></div>
+                        <div className="relative bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark w-full max-w-3xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp transition-colors">
+                            <header className="bg-black/5 dark:bg-background-dark/50 p-10 border-b border-border-light dark:border-border-dark flex justify-between items-center transition-colors">
                                 <div>
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Inicia</p>
-                                    <p className="text-lg font-black italic">{new Date(newGymData.startDate).toLocaleDateString('es-CO', { day: '2-digit', month: 'long' })}</p>
+                                    <h3 className="text-3xl font-black italic uppercase tracking-tighter text-slate-800 dark:text-white transition-colors">Nuevo <span className="text-primary-blue">Gimnasio Partner</span></h3>
+                                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Configuración inicial de cuenta corporativa</p>
                                 </div>
-                                <div className="flex flex-col items-center">
-                                    <span className="material-symbols-outlined text-primary-blue text-2xl">arrow_forward</span>
-                                    <p className="text-[8px] font-black text-primary-blue uppercase tracking-widest">
-                                        {plans.find(p => p.id === newGymData.planId)?.duration_days || 30} Días
-                                    </p>
+                                <button onClick={() => setShowAddModal(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-4xl">close</span></button>
+                            </header>
+
+                            <form onSubmit={handleAddGym} className="p-10 space-y-8">
+                                {error && (
+                                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center gap-3">
+                                        <span className="material-symbols-outlined text-red-500">error</span>
+                                        <p className="text-red-500 text-xs font-bold uppercase tracking-widest">{error}</p>
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre Comercial</label>
+                                        <input
+                                            required
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white"
+                                            placeholder="Ej: Iron Fitness Center"
+                                            value={newGymData.name}
+                                            onChange={e => setNewGymData({ ...newGymData, name: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Dueño / Representante</label>
+                                        <input
+                                            required
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white"
+                                            placeholder="Nombre del propietario"
+                                            value={newGymData.owner}
+                                            onChange={e => setNewGymData({ ...newGymData, owner: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Email de Acceso Gym</label>
+                                        <input
+                                            type="email"
+                                            required
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white"
+                                            placeholder="admin@gym.com"
+                                            value={newGymData.email}
+                                            onChange={e => setNewGymData({ ...newGymData, email: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Contraseña Provisional</label>
+                                        <input
+                                            type="password"
+                                            required
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white"
+                                            placeholder="••••••••"
+                                            value={newGymData.password}
+                                            onChange={e => setNewGymData({ ...newGymData, password: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Fecha de Alta</label>
+                                        <input
+                                            type="date"
+                                            required
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            value={newGymData.startDate}
+                                            onChange={e => setNewGymData({ ...newGymData, startDate: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Suscripción SaaS</label>
+                                        <select
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all appearance-none text-slate-800 dark:text-white transition-colors"
+                                            value={newGymData.planId}
+                                            onChange={e => setNewGymData({ ...newGymData, planId: e.target.value })}
+                                        >
+                                            {plans.map(p => (
+                                                <option key={p.id} value={p.id}>{p.name} - {formatCurrency(p.price_cop)}/mes</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Agente Vendedor (20% Com.)</label>
+                                        <select
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all appearance-none text-slate-800 dark:text-white transition-colors"
+                                            value={newGymData.agentId}
+                                            onChange={e => setNewGymData({ ...newGymData, agentId: e.target.value })}
+                                        >
+                                            <option value="">Venta Directa (Sin Agente)</option>
+                                            {agents.map(a => (
+                                                <option key={a.id} value={a.id}>{a.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-[10px] font-black text-primary-blue uppercase tracking-widest mb-1">Vence SaaS</p>
-                                    <p className="text-lg font-black italic text-primary-blue">{new Date(newGymData.endDate).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+
+                                <div className="bg-primary-blue/5 border border-primary-blue/20 rounded-3xl p-6 flex justify-between items-center text-center">
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Inicia</p>
+                                        <p className="text-lg font-black italic">{new Date(newGymData.startDate).toLocaleDateString('es-CO', { day: '2-digit', month: 'long' })}</p>
+                                    </div>
+                                    <div className="flex flex-col items-center">
+                                        <span className="material-symbols-outlined text-primary-blue text-2xl">arrow_forward</span>
+                                        <p className="text-[8px] font-black text-primary-blue uppercase tracking-widest">
+                                            {plans.find(p => p.id === newGymData.planId)?.duration_days || 30} Días
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black text-primary-blue uppercase tracking-widest mb-1">Vence SaaS</p>
+                                        <p className="text-lg font-black italic text-primary-blue">{new Date(newGymData.endDate).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                                    </div>
                                 </div>
-                            </div>
 
 
-                            <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed">
-                                {loading ? 'Procesando...' : 'Activar Licencia SaaS'}
-                                <span className="material-symbols-outlined">{loading ? 'sync' : 'rocket_launch'}</span>
-                            </button>
-                        </form>
+                                <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed">
+                                    {loading ? 'Procesando...' : 'Activar Licencia SaaS'}
+                                    <span className="material-symbols-outlined">{loading ? 'sync' : 'rocket_launch'}</span>
+                                </button>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
             {/* Modal: Editar Gimnasio */}
-            {showEditModal && editingGym && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-                    <div className="absolute inset-0 bg-background-dark/95 backdrop-blur-xl" onClick={() => setShowEditModal(false)}></div>
-                    <div className="relative bg-surface-dark border border-border-dark w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp">
-                        <header className="bg-background-dark/50 p-10 border-b border-border-dark flex justify-between items-center">
-                            <div>
-                                <h3 className="text-3xl font-black italic uppercase tracking-tighter">Editar <span className="text-primary-blue">Gimnasio</span></h3>
-                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">ID: {editingGym.id}</p>
-                            </div>
-                            <button onClick={() => setShowEditModal(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-4xl">close</span></button>
-                        </header>
+            {
+                showEditModal && editingGym && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                        <div className="absolute inset-0 bg-slate-900/60 dark:bg-background-dark/95 backdrop-blur-md transition-all" onClick={() => setShowEditModal(false)}></div>
+                        <div className="relative bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp transition-colors">
+                            <header className="bg-black/5 dark:bg-background-dark/50 p-10 border-b border-border-light dark:border-border-dark flex justify-between items-center transition-colors">
+                                <div>
+                                    <h3 className="text-3xl font-black italic uppercase tracking-tighter text-slate-800 dark:text-white transition-colors">Editar <span className="text-primary-blue">Gimnasio</span></h3>
+                                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">ID: {editingGym.id}</p>
+                                </div>
+                                <button onClick={() => setShowEditModal(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-4xl">close</span></button>
+                            </header>
 
-                        <form onSubmit={handleUpdateGym} className="p-10 space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nombre del Negocio</label>
-                                    <input
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        value={editingGym.name}
-                                        onChange={e => setEditingGym({ ...editingGym, name: e.target.value })}
-                                    />
+                            <form onSubmit={handleUpdateGym} className="p-10 space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nombre del Negocio</label>
+                                        <input
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            value={editingGym.name}
+                                            onChange={e => setEditingGym({ ...editingGym, name: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nombre del Dueño</label>
+                                        <input
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            value={editingGym.owner}
+                                            onChange={e => setEditingGym({ ...editingGym, owner: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Plan SaaS Activo</label>
+                                        <select
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            value={editingGym.plan_id}
+                                            onChange={e => setEditingGym({ ...editingGym, plan_id: e.target.value })}
+                                        >
+                                            {plans.map(p => (
+                                                <option key={p.id} value={p.id}>{p.name} - {formatCurrency(p.price_cop)}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Estado</label>
+                                        <select
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            value={editingGym.status}
+                                            onChange={e => setEditingGym({ ...editingGym, status: e.target.value })}
+                                        >
+                                            <option value="active">Activo</option>
+                                            <option value="inactive">Inactivo</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fecha Inicio</label>
+                                        <input
+                                            type="date"
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm text-slate-800 dark:text-white transition-colors"
+                                            value={editingGym.startDate}
+                                            onChange={e => setEditingGym({ ...editingGym, startDate: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fecha Vencimiento</label>
+                                        <input
+                                            type="date"
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm text-slate-800 dark:text-white transition-colors"
+                                            value={editingGym.endDate}
+                                            onChange={e => setEditingGym({ ...editingGym, endDate: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Email de Acceso</label>
+                                        <input
+                                            type="email"
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            value={editingGym.admin_email}
+                                            onChange={e => setEditingGym({ ...editingGym, admin_email: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nueva Contraseña (Opcional)</label>
+                                        <input
+                                            type="password"
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            placeholder="Dejar vacío para no cambiar"
+                                            value={editingGym.admin_new_password}
+                                            onChange={e => setEditingGym({ ...editingGym, admin_new_password: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Agente Vendedor</label>
+                                        <select
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            value={editingGym.agent_id || ''}
+                                            onChange={e => setEditingGym({ ...editingGym, agent_id: e.target.value })}
+                                        >
+                                            <option value="">Venta Directa (Sin Agente)</option>
+                                            {agents.map(a => (
+                                                <option key={a.id} value={a.id}>{a.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nombre del Dueño</label>
-                                    <input
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        value={editingGym.owner}
-                                        onChange={e => setEditingGym({ ...editingGym, owner: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Plan SaaS Activo</label>
-                                    <select
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        value={editingGym.plan_id}
-                                        onChange={e => setEditingGym({ ...editingGym, plan_id: e.target.value })}
-                                    >
-                                        {plans.map(p => (
-                                            <option key={p.id} value={p.id}>{p.name} - {formatCurrency(p.price_cop)}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Estado</label>
-                                    <select
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        value={editingGym.status}
-                                        onChange={e => setEditingGym({ ...editingGym, status: e.target.value })}
-                                    >
-                                        <option value="active">Activo</option>
-                                        <option value="inactive">Inactivo</option>
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fecha Inicio</label>
-                                    <input
-                                        type="date"
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm text-white"
-                                        value={editingGym.startDate}
-                                        onChange={e => setEditingGym({ ...editingGym, startDate: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fecha Vencimiento</label>
-                                    <input
-                                        type="date"
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm text-white"
-                                        value={editingGym.endDate}
-                                        onChange={e => setEditingGym({ ...editingGym, endDate: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Email de Acceso</label>
-                                    <input
-                                        type="email"
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        value={editingGym.admin_email}
-                                        onChange={e => setEditingGym({ ...editingGym, admin_email: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nueva Contraseña (Opcional)</label>
-                                    <input
-                                        type="password"
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-white"
-                                        placeholder="Dejar vacío para no cambiar"
-                                        value={editingGym.admin_new_password}
-                                        onChange={e => setEditingGym({ ...editingGym, admin_new_password: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Agente Vendedor</label>
-                                    <select
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        value={editingGym.agent_id || ''}
-                                        onChange={e => setEditingGym({ ...editingGym, agent_id: e.target.value })}
-                                    >
-                                        <option value="">Venta Directa (Sin Agente)</option>
-                                        {agents.map(a => (
-                                            <option key={a.id} value={a.id}>{a.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
 
-                            <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all active:scale-95 shadow-xl disabled:opacity-50">
-                                {loading ? 'Guardando...' : 'Actualizar Información'}
-                            </button>
-                        </form>
+                                <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all active:scale-95 shadow-xl disabled:opacity-50">
+                                    {loading ? 'Guardando...' : 'Actualizar Información'}
+                                </button>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Modal: Nuevo Plan SaaS */}
-            {showAddPlanModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-                    <div className="absolute inset-0 bg-background-dark/95 backdrop-blur-xl" onClick={() => setShowAddPlanModal(false)}></div>
-                    <div className="relative bg-surface-dark border border-border-dark w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp">
-                        <header className="bg-background-dark/50 p-10 border-b border-border-dark flex justify-between items-center">
-                            <div>
-                                <h3 className="text-3xl font-black italic uppercase tracking-tighter">Crear <span className="text-primary-blue">Plan SaaS</span></h3>
-                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Configuración de nueva tarifa de suscripción</p>
-                            </div>
-                            <button onClick={() => setShowAddPlanModal(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-4xl">close</span></button>
-                        </header>
-
-                        <form onSubmit={handleAddPlan} className="p-10 space-y-6">
-                            <div className="grid grid-cols-1 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre del Plan</label>
-                                    <input
-                                        required
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        placeholder="Ej: Plan Profesional"
-                                        value={newPlanData.name}
-                                        onChange={e => setNewPlanData({ ...newPlanData, name: e.target.value })}
-                                    />
+            {
+                showAddPlanModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                        <div className="absolute inset-0 bg-slate-900/60 dark:bg-background-dark/95 backdrop-blur-md transition-all" onClick={() => setShowAddPlanModal(false)}></div>
+                        <div className="relative bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp transition-colors">
+                            <header className="bg-black/5 dark:bg-background-dark/50 p-10 border-b border-border-light dark:border-border-dark flex justify-between items-center transition-colors">
+                                <div>
+                                    <h3 className="text-3xl font-black italic uppercase tracking-tighter text-slate-800 dark:text-white transition-colors">Crear <span className="text-primary-blue">Plan SaaS</span></h3>
+                                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Configuración de nueva tarifa de suscripción</p>
                                 </div>
-                                <div className="grid grid-cols-2 gap-6">
+                                <button onClick={() => setShowAddPlanModal(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-4xl">close</span></button>
+                            </header>
+
+                            <form onSubmit={handleAddPlan} className="p-10 space-y-6">
+                                <div className="grid grid-cols-1 gap-6">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Precio (COP)</label>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre del Plan</label>
                                         <input
-                                            type="number"
                                             required
-                                            className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                            value={newPlanData.price_cop}
-                                            onChange={e => setNewPlanData({ ...newPlanData, price_cop: Number(e.target.value) })}
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            placeholder="Ej: Plan Profesional"
+                                            value={newPlanData.name}
+                                            onChange={e => setNewPlanData({ ...newPlanData, name: e.target.value })}
                                         />
                                     </div>
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Precio (COP)</label>
+                                            <input
+                                                type="number"
+                                                required
+                                                className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                                value={newPlanData.price_cop}
+                                                onChange={e => setNewPlanData({ ...newPlanData, price_cop: Number(e.target.value) })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Duración (Días)</label>
+                                            <input
+                                                type="number"
+                                                required
+                                                className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                                value={newPlanData.duration_days}
+                                                onChange={e => setNewPlanData({ ...newPlanData, duration_days: Number(e.target.value) })}
+                                            />
+                                        </div>
+                                    </div>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Duración (Días)</label>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Límite de Socios (Texto)</label>
                                         <input
-                                            type="number"
-                                            required
-                                            className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                            value={newPlanData.duration_days}
-                                            onChange={e => setNewPlanData({ ...newPlanData, duration_days: Number(e.target.value) })}
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            placeholder="Ej: Hasta 500 socios"
+                                            value={newPlanData.gym_limit}
+                                            onChange={e => setNewPlanData({ ...newPlanData, gym_limit: e.target.value })}
                                         />
                                     </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Límite de Socios (Texto)</label>
-                                    <input
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        placeholder="Ej: Hasta 500 socios"
-                                        value={newPlanData.gym_limit}
-                                        onChange={e => setNewPlanData({ ...newPlanData, gym_limit: e.target.value })}
-                                    />
-                                </div>
-                            </div>
 
-                            <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl disabled:opacity-50">
-                                {loading ? 'Creando...' : 'Publicar Plan'}
-                                <span className="material-symbols-outlined">add_task</span>
-                            </button>
-                        </form>
+                                <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl disabled:opacity-50">
+                                    {loading ? 'Creando...' : 'Publicar Plan'}
+                                    <span className="material-symbols-outlined">add_task</span>
+                                </button>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Modal: Editar Plan SaaS */}
-            {showEditPlanModal && editingPlan && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-                    <div className="absolute inset-0 bg-background-dark/95 backdrop-blur-xl" onClick={() => setShowEditPlanModal(false)}></div>
-                    <div className="relative bg-surface-dark border border-border-dark w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp">
-                        <header className="bg-background-dark/50 p-10 border-b border-border-dark flex justify-between items-center">
-                            <div>
-                                <h3 className="text-3xl font-black italic uppercase tracking-tighter">Editar <span className="text-primary-blue">Tarifa</span></h3>
-                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Sincronización en tiempo real con el ecosistema</p>
-                            </div>
-                            <button onClick={() => setShowEditPlanModal(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-4xl">close</span></button>
-                        </header>
-
-                        <form onSubmit={handleUpdatePlan} className="p-10 space-y-6">
-                            <div className="grid grid-cols-1 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre del Plan</label>
-                                    <input
-                                        required
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        value={editingPlan.name}
-                                        onChange={e => setEditingPlan({ ...editingPlan, name: e.target.value })}
-                                    />
+            {
+                showEditPlanModal && editingPlan && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                        <div className="absolute inset-0 bg-slate-900/60 dark:bg-background-dark/95 backdrop-blur-md transition-all" onClick={() => setShowEditPlanModal(false)}></div>
+                        <div className="relative bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp transition-colors">
+                            <header className="bg-black/5 dark:bg-background-dark/50 p-10 border-b border-border-light dark:border-border-dark flex justify-between items-center transition-colors">
+                                <div>
+                                    <h3 className="text-3xl font-black italic uppercase tracking-tighter text-slate-800 dark:text-white transition-colors">Editar <span className="text-primary-blue">Tarifa</span></h3>
+                                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Sincronización en tiempo real con el ecosistema</p>
                                 </div>
-                                <div className="grid grid-cols-2 gap-6">
+                                <button onClick={() => setShowEditPlanModal(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-4xl">close</span></button>
+                            </header>
+
+                            <form onSubmit={handleUpdatePlan} className="p-10 space-y-6">
+                                <div className="grid grid-cols-1 gap-6">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Precio (COP)</label>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre del Plan</label>
                                         <input
-                                            type="number"
                                             required
-                                            className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                            value={editingPlan.price_cop}
-                                            onChange={e => setEditingPlan({ ...editingPlan, price_cop: Number(e.target.value) })}
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            value={editingPlan.name}
+                                            onChange={e => setEditingPlan({ ...editingPlan, name: e.target.value })}
                                         />
                                     </div>
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Precio (COP)</label>
+                                            <input
+                                                type="number"
+                                                required
+                                                className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                                value={editingPlan.price_cop}
+                                                onChange={e => setEditingPlan({ ...editingPlan, price_cop: Number(e.target.value) })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Duración (Días)</label>
+                                            <input
+                                                type="number"
+                                                required
+                                                className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                                value={editingPlan.duration_days}
+                                                onChange={e => setEditingPlan({ ...editingPlan, duration_days: Number(e.target.value) })}
+                                            />
+                                        </div>
+                                    </div>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Duración (Días)</label>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Límite de Socios (Texto)</label>
                                         <input
-                                            type="number"
-                                            required
-                                            className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                            value={editingPlan.duration_days}
-                                            onChange={e => setEditingPlan({ ...editingPlan, duration_days: Number(e.target.value) })}
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            value={editingPlan.gym_limit}
+                                            onChange={e => setEditingPlan({ ...editingPlan, gym_limit: e.target.value })}
                                         />
                                     </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Límite de Socios (Texto)</label>
-                                    <input
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        value={editingPlan.gym_limit}
-                                        onChange={e => setEditingPlan({ ...editingPlan, gym_limit: e.target.value })}
-                                    />
-                                </div>
-                            </div>
 
-                            <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl disabled:opacity-50">
-                                {loading ? 'Actualizando...' : 'Guardar Cambios'}
-                                <span className="material-symbols-outlined">save</span>
-                            </button>
-                        </form>
+                                <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl disabled:opacity-50">
+                                    {loading ? 'Actualizando...' : 'Guardar Cambios'}
+                                    <span className="material-symbols-outlined">save</span>
+                                </button>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Modal: Nuevo Agente */}
-            {showAddAgentModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-                    <div className="absolute inset-0 bg-background-dark/95 backdrop-blur-xl" onClick={() => setShowAddAgentModal(false)}></div>
-                    <div className="relative bg-surface-dark border border-border-dark w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp">
-                        <header className="bg-background-dark/50 p-10 border-b border-border-dark flex justify-between items-center">
-                            <div>
-                                <h3 className="text-3xl font-black italic uppercase tracking-tighter">Nuevo <span className="text-primary-blue">Agente de Ventas</span></h3>
-                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Gana 20% por cada gimnasio referido</p>
-                            </div>
-                            <button onClick={() => setShowAddAgentModal(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-4xl">close</span></button>
-                        </header>
+            {
+                showAddAgentModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                        <div className="absolute inset-0 bg-slate-900/60 dark:bg-background-dark/95 backdrop-blur-md transition-all" onClick={() => setShowAddAgentModal(false)}></div>
+                        <div className="relative bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp transition-colors">
+                            <header className="bg-black/5 dark:bg-background-dark/50 p-10 border-b border-border-light dark:border-border-dark flex justify-between items-center transition-colors">
+                                <div>
+                                    <h3 className="text-3xl font-black italic uppercase tracking-tighter text-slate-800 dark:text-white transition-colors">Nuevo <span className="text-primary-blue">Agente de Ventas</span></h3>
+                                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Gana 20% por cada gimnasio referido</p>
+                                </div>
+                                <button onClick={() => setShowAddAgentModal(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-4xl">close</span></button>
+                            </header>
 
-                        <form onSubmit={handleAddAgent} className="p-10 space-y-6">
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre Completo</label>
-                                    <input
-                                        required
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        placeholder="Ej: Juan Pérez"
-                                        value={newAgentData.name}
-                                        onChange={e => setNewAgentData({ ...newAgentData, name: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Email de Contacto</label>
-                                    <input
-                                        type="email"
-                                        required
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        placeholder="correo@ejemplo.com"
-                                        value={newAgentData.email}
-                                        onChange={e => setNewAgentData({ ...newAgentData, email: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Contraseña de Acceso</label>
-                                    <input
-                                        type="password"
-                                        required
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        placeholder="••••••••"
-                                        value={newAgentData.password}
-                                        onChange={e => setNewAgentData({ ...newAgentData, password: e.target.value })}
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-6">
+                            <form onSubmit={handleAddAgent} className="p-10 space-y-6">
+                                <div className="space-y-4">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Teléfono</label>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre Completo</label>
                                         <input
-                                            className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm"
-                                            placeholder="300..."
-                                            value={newAgentData.phone}
-                                            onChange={e => setNewAgentData({ ...newAgentData, phone: e.target.value })}
+                                            required
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            placeholder="Ej: Juan Pérez"
+                                            value={newAgentData.name}
+                                            onChange={e => setNewAgentData({ ...newAgentData, name: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Email de Contacto</label>
+                                        <input
+                                            type="email"
+                                            required
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            placeholder="correo@ejemplo.com"
+                                            value={newAgentData.email}
+                                            onChange={e => setNewAgentData({ ...newAgentData, email: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Contraseña de Acceso</label>
+                                        <input
+                                            type="password"
+                                            required
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            placeholder="••••••••"
+                                            value={newAgentData.password}
+                                            onChange={e => setNewAgentData({ ...newAgentData, password: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Teléfono</label>
+                                            <input
+                                                className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm text-slate-800 dark:text-white transition-colors"
+                                                placeholder="300..."
+                                                value={newAgentData.phone}
+                                                onChange={e => setNewAgentData({ ...newAgentData, phone: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">% Comisión</label>
+                                            <input
+                                                type="number"
+                                                className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm text-slate-800 dark:text-white transition-colors"
+                                                value={newAgentData.commission_rate}
+                                                onChange={e => setNewAgentData({ ...newAgentData, commission_rate: Number(e.target.value) })}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all">
+                                    {loading ? 'Creando...' : 'Registrar Agente'}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Modal: Editar Agente */}
+            {
+                showEditAgentModal && editingAgent && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                        <div className="absolute inset-0 bg-slate-900/60 dark:bg-background-dark/95 backdrop-blur-md transition-all" onClick={() => setShowEditAgentModal(false)}></div>
+                        <div className="relative bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp transition-colors">
+                            <header className="bg-black/5 dark:bg-background-dark/50 p-10 border-b border-border-light dark:border-border-dark flex justify-between items-center transition-colors">
+                                <h3 className="text-3xl font-black italic uppercase tracking-tighter text-slate-800 dark:text-white transition-colors">Editar <span className="text-primary-blue">Agente</span></h3>
+                                <button onClick={() => setShowEditAgentModal(false)} className="text-slate-500 hover:text-white"><span className="material-symbols-outlined text-4xl">close</span></button>
+                            </header>
+                            <form onSubmit={handleUpdateAgent} className="p-10 space-y-6">
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre Completo</label>
+                                        <input
+                                            required
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            value={editingAgent.name}
+                                            onChange={e => setEditingAgent({ ...editingAgent, name: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Email</label>
+                                        <input
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm text-slate-800 dark:text-white transition-colors"
+                                            value={editingAgent.email}
+                                            onChange={e => setEditingAgent({ ...editingAgent, email: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nueva Contraseña (Opcional)</label>
+                                        <input
+                                            type="password"
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm text-slate-800 dark:text-white transition-colors"
+                                            placeholder="Dejar en blanco para no cambiar"
+                                            value={editingAgent.new_password || ''}
+                                            onChange={e => setEditingAgent({ ...editingAgent, new_password: e.target.value })}
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">% Comisión</label>
                                         <input
                                             type="number"
-                                            className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm"
-                                            value={newAgentData.commission_rate}
-                                            onChange={e => setNewAgentData({ ...newAgentData, commission_rate: Number(e.target.value) })}
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm text-slate-800 dark:text-white transition-colors"
+                                            value={editingAgent.commission_rate}
+                                            onChange={e => setEditingAgent({ ...editingAgent, commission_rate: Number(e.target.value) })}
                                         />
                                     </div>
                                 </div>
-                            </div>
-                            <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all">
-                                {loading ? 'Creando...' : 'Registrar Agente'}
-                            </button>
-                        </form>
+                                <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all">
+                                    {loading ? 'Actualizando...' : 'Guardar Cambios'}
+                                </button>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
-            {/* Modal: Editar Agente */}
-            {showEditAgentModal && editingAgent && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-                    <div className="absolute inset-0 bg-background-dark/95 backdrop-blur-xl" onClick={() => setShowEditAgentModal(false)}></div>
-                    <div className="relative bg-surface-dark border border-border-dark w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp">
-                        <header className="bg-background-dark/50 p-10 border-b border-border-dark flex justify-between items-center">
-                            <h3 className="text-3xl font-black italic uppercase tracking-tighter">Editar <span className="text-primary-blue">Agente</span></h3>
-                            <button onClick={() => setShowEditAgentModal(false)} className="text-slate-500 hover:text-white"><span className="material-symbols-outlined text-4xl">close</span></button>
-                        </header>
-                        <form onSubmit={handleUpdateAgent} className="p-10 space-y-6">
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre Completo</label>
-                                    <input
-                                        required
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all"
-                                        value={editingAgent.name}
-                                        onChange={e => setEditingAgent({ ...editingAgent, name: e.target.value })}
-                                    />
+            {/* Modal: Registrar Pago / Renovar */}
+            {
+                showPaymentModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                        <div className="absolute inset-0 bg-slate-900/60 dark:bg-background-dark/95 backdrop-blur-md transition-all" onClick={() => setShowPaymentModal(false)}></div>
+                        <div className="relative bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp transition-colors">
+                            <header className="bg-black/5 dark:bg-background-dark/50 p-10 border-b border-border-light dark:border-border-dark flex justify-between items-center transition-colors">
+                                <div>
+                                    <h3 className="text-3xl font-black italic uppercase tracking-tighter text-slate-800 dark:text-white transition-colors">Registrar <span className="text-primary-blue">Pago SaaS</span></h3>
+                                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Renovación de Licencia y Auditoría</p>
+                                </div>
+                                <button onClick={() => setShowPaymentModal(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-symbols-outlined text-4xl">close</span></button>
+                            </header>
+
+                            <form onSubmit={handleRecordPayment} className="p-10 space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Plan a Renovar</label>
+                                        <select
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all appearance-none text-slate-800 dark:text-white transition-colors"
+                                            value={newPaymentData.plan_id}
+                                            onChange={e => {
+                                                const plan = plans.find(p => p.id === e.target.value);
+                                                setNewPaymentData({ ...newPaymentData, plan_id: e.target.value, amount: plan?.price_cop || 0 });
+                                            }}
+                                        >
+                                            <option value="">Seleccionar Plan</option>
+                                            {plans.map(p => (
+                                                <option key={p.id} value={p.id}>{p.name} - {formatCurrency(p.price_cop)}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Monto Recibido (COP)</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            value={newPaymentData.amount}
+                                            onChange={e => setNewPaymentData({ ...newPaymentData, amount: Number(e.target.value) })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Método de Pago</label>
+                                        <select
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all appearance-none text-slate-800 dark:text-white transition-colors"
+                                            value={newPaymentData.payment_method}
+                                            onChange={e => setNewPaymentData({ ...newPaymentData, payment_method: e.target.value })}
+                                        >
+                                            <option value="transferencia">Transferencia Bancaria</option>
+                                            <option value="efectivo">Efectivo / Corresponsal</option>
+                                            <option value="wompi">Link de Pago (Wompi)</option>
+                                            <option value="stripe">Tarjeta (Stripe)</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">ID de Transacción / Referencia</label>
+                                        <input
+                                            className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all text-slate-800 dark:text-white transition-colors"
+                                            placeholder="Cód. de aprobación o referencia"
+                                            value={newPaymentData.transaction_id}
+                                            onChange={e => setNewPaymentData({ ...newPaymentData, transaction_id: e.target.value })}
+                                        />
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Email</label>
-                                    <input
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm"
-                                        value={editingAgent.email}
-                                        onChange={e => setEditingAgent({ ...editingAgent, email: e.target.value })}
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Notas Internas</label>
+                                    <textarea
+                                        className="w-full bg-black/5 dark:bg-background-dark border-2 border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary-blue outline-none transition-all h-24 resize-none text-slate-800 dark:text-white transition-colors"
+                                        placeholder="Detalles adicionales del pago..."
+                                        value={newPaymentData.notes}
+                                        onChange={e => setNewPaymentData({ ...newPaymentData, notes: e.target.value })}
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nueva Contraseña (Opcional)</label>
-                                    <input
-                                        type="password"
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm"
-                                        placeholder="Dejar en blanco para no cambiar"
-                                        value={editingAgent.new_password || ''}
-                                        onChange={e => setEditingAgent({ ...editingAgent, new_password: e.target.value })}
-                                    />
+
+                                <div className="bg-primary/5 border border-primary/20 p-6 rounded-3xl flex items-start gap-4">
+                                    <span className="material-symbols-outlined text-primary">info</span>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed tracking-widest">
+                                        Al registrar este pago, la licencia del gimnasio se extenderá automáticamente según la duración del plan seleccionado ({plans.find(p => p.id === newPaymentData.plan_id)?.duration_days || 30} días).
+                                    </p>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">% Comisión</label>
-                                    <input
-                                        type="number"
-                                        className="w-full bg-background-dark border-2 border-white/5 rounded-2xl py-4 px-6 text-sm"
-                                        value={editingAgent.commission_rate}
-                                        onChange={e => setEditingAgent({ ...editingAgent, commission_rate: Number(e.target.value) })}
-                                    />
+
+                                <button type="submit" disabled={loading} className="w-full bg-primary text-background-dark font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(13,242,89,0.3)] transition-all flex items-center justify-center gap-3 active:scale-95">
+                                    {loading ? 'Procesando...' : 'Confirmar Registro de Pago'}
+                                    <span className="material-symbols-outlined">receipt_long</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Modal Historial de Pagos Detallado por Gym */}
+            {
+                selectedGymHistory && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-12">
+                        <div className="absolute inset-0 bg-slate-900/60 dark:bg-background-dark/95 backdrop-blur-md transition-all" onClick={() => setSelectedGymHistory(null)}></div>
+                        <div className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-white/5 w-full max-w-5xl rounded-[3rem] overflow-hidden relative shadow-2xl animate-scaleUp transition-colors">
+                            {/* Header */}
+                            <div className="p-10 border-b border-border-light dark:border-white/5 bg-black/5 dark:bg-background-dark/30 flex justify-between items-center transition-colors">
+                                <div>
+                                    <h3 className="text-3xl font-black uppercase italic tracking-tighter text-slate-800 dark:text-white transition-colors">Bitácora de <span className="text-primary-blue">Pagos SaaS</span></h3>
+                                    <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-1">Gimnasio: {selectedGymHistory.gym.name}</p>
+                                </div>
+                                <div className="flex gap-4">
+                                    <div className="hidden md:flex flex-col items-end">
+                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Estado Actual</span>
+                                        <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase italic ${selectedGymHistory.gym.status === 'active' ? 'bg-primary/10 text-primary' : 'bg-red-500/10 text-red-500'}`}>
+                                            {selectedGymHistory.gym.status === 'active' ? 'Suscripción Activa' : 'Suscripción Vencida'}
+                                        </span>
+                                    </div>
+                                    <button onClick={() => setSelectedGymHistory(null)} className="size-12 rounded-2xl bg-white/5 flex items-center justify-center text-slate-500 hover:text-white hover:bg-red-500/20 transition-all font-black">
+                                        <span className="material-symbols-outlined">close</span>
+                                    </button>
                                 </div>
                             </div>
-                            <button type="submit" disabled={loading} className="w-full bg-primary-blue text-white font-black py-5 rounded-[2rem] uppercase tracking-widest hover:shadow-[0_0_40px_rgba(25,127,230,0.4)] transition-all">
-                                {loading ? 'Actualizando...' : 'Guardar Cambios'}
-                            </button>
-                        </form>
+
+                            {/* Table Content */}
+                            <div className="max-h-[60vh] overflow-y-auto p-10">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] border-b border-white/5">
+                                            <th className="pb-6 px-4">Fecha Pago</th>
+                                            <th className="pb-6 px-4">Plan / Ciclo</th>
+                                            <th className="pb-6 px-4">Monto</th>
+                                            <th className="pb-6 px-4">Periodo</th>
+                                            <th className="pb-6 px-4">Vencimiento</th>
+                                            <th className="pb-6 px-4 text-right">Referencia</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {selectedGymHistory.history.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="6" className="py-24 text-center">
+                                                    <div className="flex flex-col items-center gap-4 text-slate-600">
+                                                        <span className="material-symbols-outlined text-6xl opacity-20">history_toggle_off</span>
+                                                        <p className="font-black uppercase tracking-widest italic">Sin registros históricos de cobranza</p>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            selectedGymHistory.history.map(pay => {
+                                                const pDate = new Date(pay.payment_date);
+                                                const duration = pay.saas_plans?.duration_days || 30;
+                                                const expiry = new Date(pDate);
+                                                expiry.setDate(expiry.getDate() + duration);
+
+                                                return (
+                                                    <tr key={pay.id} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-all group border-b border-transparent hover:border-black/5 dark:hover:border-white/5">
+                                                        <td className="py-6 px-4">
+                                                            <span className="font-bold text-slate-800 dark:text-white text-sm">
+                                                                {pDate.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                            </span>
+                                                            <p className="text-[8px] text-slate-500 font-bold uppercase mt-1">Hora: {pDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                                        </td>
+                                                        <td className="py-6 px-4">
+                                                            <p className="font-black uppercase italic text-sm text-primary-blue leading-none mb-1">
+                                                                {pay.saas_plans?.name || 'Plan Custom'}
+                                                            </p>
+                                                            <span className="text-[8px] bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 px-2 py-0.5 rounded text-slate-500 dark:text-slate-400 font-black uppercase">
+                                                                SaaS
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-6 px-4">
+                                                            <span className="font-black text-slate-800 dark:text-white italic text-base">{formatCurrency(pay.amount)}</span>
+                                                            <p className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">{pay.payment_method}</p>
+                                                        </td>
+                                                        <td className="py-6 px-4">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-slate-800 dark:text-white font-bold text-xs">{duration} Días</span>
+                                                                <span className="text-[8px] text-slate-500 font-black uppercase italic">Duración total</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-6 px-4">
+                                                            <div className="flex flex-col">
+                                                                <span className={`text-xs font-black italic ${new Date() > expiry ? 'text-red-500/60' : 'text-primary'}`}>
+                                                                    {expiry.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                                </span>
+                                                                <span className="text-[8px] text-slate-500 font-black uppercase">Fecha Corte</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-6 px-4 text-right">
+                                                            <div className="flex items-center justify-end gap-2 group/ref">
+                                                                <span className="text-[9px] text-slate-600 font-mono truncate max-w-[100px] group-hover/ref:text-slate-400 transition-colors">
+                                                                    {pay.transaction_id || pay.id.split('-')[0]}
+                                                                </span>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        navigator.clipboard.writeText(pay.transaction_id || pay.id);
+                                                                        const btn = e.currentTarget;
+                                                                        const original = btn.innerHTML;
+                                                                        btn.innerHTML = '<span class="material-symbols-outlined text-xs text-primary">check</span>';
+                                                                        setTimeout(() => btn.innerHTML = original, 2000);
+                                                                    }}
+                                                                    className="p-2 hover:bg-white/5 rounded-lg text-slate-600 hover:text-white transition-all active:scale-90"
+                                                                    title="Copiar Referencia"
+                                                                >
+                                                                    <span className="material-symbols-outlined text-sm">content_copy</span>
+                                                                </button>
+                                                            </div>
+                                                            <p className="text-[7px] text-slate-700 font-black uppercase mt-1">ID Único Transacción</p>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Footer Summary */}
+                            <div className="p-10 bg-black/5 dark:bg-background-dark/30 flex flex-col md:flex-row justify-between items-center gap-6 transition-colors">
+                                <div className="flex gap-12">
+                                    <div className="flex flex-col">
+                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Total histórico</span>
+                                        <span className="text-2xl font-black text-primary italic">
+                                            {formatCurrency(selectedGymHistory.history.reduce((acc, p) => acc + Number(p.amount), 0))}
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Pagos totales</span>
+                                        <span className="text-2xl font-black text-slate-800 dark:text-white italic">
+                                            {selectedGymHistory.history.length} <span className="text-[10px] text-slate-500">Ciclos</span>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="flex gap-4 w-full md:w-auto">
+                                    <button onClick={() => setSelectedGymHistory(null)} className="flex-1 md:flex-none px-12 py-5 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 border border-black/5 dark:border-white/5 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all">
+                                        Cerrar Bitácora
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+
+        </div >
     );
 };
 

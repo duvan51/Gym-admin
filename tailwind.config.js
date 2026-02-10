@@ -12,7 +12,9 @@ export default {
         "primary-blue": "#197fe6",
         "background-light": "#f5f8f6",
         "background-dark": "#102216",
+        "surface-light": "#ffffff",
         "surface-dark": "#1a2e21",
+        "border-light": "#e2e8f0",
         "border-dark": "#28392e",
       },
       fontFamily: {

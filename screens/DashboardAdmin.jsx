@@ -16,6 +16,17 @@ const DashboardAdmin = () => {
         retentionRate: 0
     });
     const [insight, setInsight] = useState("Analizando tendencias financieras...");
+    const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
+
+    useEffect(() => {
+        const query = new URLSearchParams(window.location.search);
+        if (query.get('success') === 'true') {
+            setShowPaymentSuccess(true);
+            // Clean URL after detection
+            window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+            setTimeout(() => setShowPaymentSuccess(false), 5000);
+        }
+    }, []);
 
     useEffect(() => {
         fetchDashboardData();
@@ -98,7 +109,7 @@ const DashboardAdmin = () => {
 
     if (loading) {
         return (
-            <div className="flex min-h-screen bg-background-dark text-white font-display">
+            <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-slate-800 dark:text-white font-display transition-colors">
                 <AdminSidebar />
                 <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
@@ -111,17 +122,17 @@ const DashboardAdmin = () => {
     }
 
     return (
-        <div className="flex min-h-screen bg-background-dark text-white font-display">
+        <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-slate-800 dark:text-white font-display transition-colors">
             <AdminSidebar />
 
             <main className="flex-1 flex flex-col h-screen overflow-hidden">
-                <header className="px-10 py-8 border-b border-border-dark bg-surface-dark/30 backdrop-blur-md flex justify-between items-center shrink-0">
+                <header className="px-10 py-8 border-b border-border-light dark:border-border-dark bg-surface-light/30 dark:bg-surface-dark/30 backdrop-blur-md flex justify-between items-center shrink-0 transition-colors">
                     <div>
-                        <h1 className="text-4xl font-black uppercase italic tracking-tighter">Executive <span className="text-primary">Dashboard</span></h1>
+                        <h1 className="text-4xl font-black uppercase italic tracking-tighter text-slate-800 dark:text-white transition-colors">Executive <span className="text-primary">Dashboard</span></h1>
                         <p className="text-slate-500 text-sm font-bold uppercase tracking-[0.2em] mt-1">Reporte financiero y operativo real</p>
                     </div>
                     <div className="flex items-center gap-4">
-                        <div className="bg-background-dark/50 px-6 py-2 rounded-2xl border border-white/5 text-right">
+                        <div className="bg-black/5 dark:bg-background-dark/50 px-6 py-2 rounded-2xl border border-black/5 dark:border-white/5 text-right transition-colors">
                             <p className="text-[10px] font-black text-slate-500 uppercase">Estado del Sistema</p>
                             <p className="text-primary text-xs font-black uppercase tracking-widest flex items-center gap-2 justify-end">
                                 <span className="size-2 rounded-full bg-primary animate-pulse"></span> Sincronizado
@@ -130,27 +141,45 @@ const DashboardAdmin = () => {
                     </div>
                 </header>
 
+                {/* Success Notification Overlay */}
+                {showPaymentSuccess && (
+                    <div className="mx-10 mt-8 bg-primary/20 border border-primary/30 p-6 rounded-[2rem] flex items-center justify-between animate-fadeInDown">
+                        <div className="flex items-center gap-6">
+                            <div className="size-12 rounded-2xl bg-primary/20 text-primary flex items-center justify-center border border-primary/20">
+                                <span className="material-symbols-outlined text-3xl">verified_user</span>
+                            </div>
+                            <div>
+                                <h4 className="text-lg font-black uppercase italic tracking-tight text-slate-800 dark:text-white transition-colors">¡Pago Procesado con Éxito!</h4>
+                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-0.5">Tu suscripción SaaS ha sido renovada. Los cambios se reflejarán en breve.</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setShowPaymentSuccess(false)} className="text-slate-500 hover:text-white transition-colors">
+                            <span className="material-symbols-outlined">close</span>
+                        </button>
+                    </div>
+                )}
+
                 <div className="flex-1 p-10 overflow-y-auto custom-scrollbar space-y-8 pb-20">
                     {/* IA Insights Row */}
-                    <section className="bg-primary/5 border border-primary/20 rounded-[2.5rem] p-8 flex items-center gap-6 animate-fadeIn">
+                    <section className="bg-primary/5 border border-primary/20 rounded-[2.5rem] p-8 flex items-center gap-6 animate-fadeIn transition-colors">
                         <div className="size-16 rounded-2xl bg-primary/20 flex items-center justify-center border border-primary/30 shrink-0">
                             <span className="material-symbols-outlined text-primary text-4xl">analytics</span>
                         </div>
                         <div>
                             <h4 className="text-primary text-xs font-black uppercase tracking-[0.3em] mb-2">Estrategia sugerida por IA</h4>
-                            <p className="text-slate-300 italic text-lg leading-relaxed">"{insight}"</p>
+                            <p className="text-slate-600 dark:text-slate-300 italic text-lg leading-relaxed transition-colors">"{insight}"</p>
                         </div>
                     </section>
 
                     {/* Main Stats Bento Grid */}
                     <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {/* Revenue Card */}
-                        <div className="bg-surface-dark border border-border-dark p-8 rounded-[2.5rem] relative overflow-hidden group">
+                        <div className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark p-8 rounded-[2.5rem] relative overflow-hidden group transition-all">
                             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform">
-                                <span className="material-symbols-outlined text-7xl">payments</span>
+                                <span className="material-symbols-outlined text-7xl text-slate-800 dark:text-white">payments</span>
                             </div>
                             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Recaudación Total</p>
-                            <h3 className="text-3xl font-black italic">{formatCOP(stats.totalRevenue)}</h3>
+                            <h3 className="text-3xl font-black italic text-slate-800 dark:text-white transition-colors">{formatCOP(stats.totalRevenue)}</h3>
                             <div className="mt-4 flex items-center gap-2 text-primary">
                                 <span className="material-symbols-outlined text-sm">trending_up</span>
                                 <span className="text-xs font-bold">Sin histórico</span>
@@ -158,32 +187,32 @@ const DashboardAdmin = () => {
                         </div>
 
                         {/* Active Users Card */}
-                        <div className="bg-surface-dark border border-border-dark p-8 rounded-[2.5rem] relative overflow-hidden group">
+                        <div className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark p-8 rounded-[2.5rem] relative overflow-hidden group transition-all">
                             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Usuarios Activos</p>
-                            <h3 className="text-3xl font-black italic">{stats.activeUsers}</h3>
-                            <div className="mt-4 w-full h-1.5 bg-background-dark rounded-full overflow-hidden">
+                            <h3 className="text-3xl font-black italic text-slate-800 dark:text-white transition-colors">{stats.activeUsers}</h3>
+                            <div className="mt-4 w-full h-1.5 bg-black/5 dark:bg-background-dark rounded-full overflow-hidden transition-colors">
                                 <div className="h-full bg-primary" style={{ width: `${stats.retentionRate}%` }}></div>
                             </div>
                             <p className="text-[10px] text-slate-500 mt-2 font-bold uppercase tracking-widest">Ratio: {stats.retentionRate}% Activos</p>
                         </div>
 
                         {/* Expired Users Card */}
-                        <div className="bg-surface-dark border border-border-dark p-8 rounded-[2.5rem] relative overflow-hidden group">
+                        <div className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark p-8 rounded-[2.5rem] relative overflow-hidden group transition-all">
                             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Atletas sin Plan</p>
                             <h3 className="text-3xl font-black italic text-red-500">{stats.expiredUsers}</h3>
-                            <button className="mt-4 flex items-center gap-2 text-white/50 hover:text-white transition-colors">
+                            <button className="mt-4 flex items-center gap-2 text-slate-500 dark:text-white/50 hover:text-slate-800 dark:hover:text-white transition-colors">
                                 <span className="material-symbols-outlined text-sm">mail</span>
                                 <span className="text-xs font-bold underline">Recordar pagos</span>
                             </button>
                         </div>
 
                         {/* Retention Card */}
-                        <div className="bg-surface-dark border border-border-dark p-8 rounded-[2.5rem] relative overflow-hidden group">
+                        <div className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark p-8 rounded-[2.5rem] relative overflow-hidden group transition-all">
                             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Total Registrados</p>
                             <h3 className="text-3xl font-black italic text-primary-blue">{stats.totalUsers}</h3>
                             <div className="flex gap-1 mt-4">
                                 {[1, 2, 3, 4, 5].map(i => (
-                                    <div key={i} className={`h-1 flex-1 rounded-full ${i <= 3 ? 'bg-primary-blue' : 'bg-white/10'}`}></div>
+                                    <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${i <= 3 ? 'bg-primary-blue' : 'bg-black/5 dark:bg-white/10'}`}></div>
                                 ))}
                             </div>
                         </div>
@@ -192,11 +221,11 @@ const DashboardAdmin = () => {
                     {/* Financial Breakdown Section */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Recent Payments Table */}
-                        <div className="lg:col-span-2 bg-surface-dark border border-border-dark rounded-[2.5rem] p-8">
+                        <div className="lg:col-span-2 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-[2.5rem] p-8 transition-all">
                             <div className="flex justify-between items-center mb-8">
-                                <h3 className="text-xl font-black uppercase italic">Flujo de Caja Real</h3>
+                                <h3 className="text-xl font-black uppercase italic text-slate-800 dark:text-white transition-colors">Flujo de Caja Real</h3>
                                 <div className="flex gap-2">
-                                    <button className="px-4 py-2 bg-background-dark border border-white/5 rounded-xl text-[10px] font-black uppercase hover:bg-white/5 transition-all">Exportar PDF</button>
+                                    <button className="px-4 py-2 bg-black/5 dark:bg-background-dark border border-black/5 dark:border-white/5 rounded-xl text-[10px] font-black uppercase hover:bg-black/10 dark:hover:bg-white/5 transition-all text-slate-600 dark:text-slate-400">Exportar PDF</button>
                                 </div>
                             </div>
 
@@ -206,19 +235,19 @@ const DashboardAdmin = () => {
                                     { period: "Este Mes", amount: stats.monthlyRevenue, label: "Recaudo Bruto (Caja)", color: "text-primary" },
                                     { period: "Histórico", amount: stats.totalRevenue, label: "Total Producido" }
                                 ].map((row, i) => (
-                                    <div key={i} className="flex items-center justify-between p-6 rounded-[2rem] bg-background-dark/30 border border-white/5 group hover:border-primary/20 transition-all">
+                                    <div key={i} className="flex items-center justify-between p-6 rounded-[2rem] bg-black/5 dark:bg-background-dark/30 border border-black/5 dark:border-white/5 group hover:border-primary/20 transition-all">
                                         <div className="flex items-center gap-6">
-                                            <div className="size-12 rounded-2xl bg-white/5 flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors">
+                                            <div className="size-12 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors">
                                                 <span className="material-symbols-outlined">calendar_today</span>
                                             </div>
                                             <div>
                                                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Periodo</p>
-                                                <p className="font-black text-lg italic uppercase">{row.period}</p>
+                                                <p className="font-black text-lg italic uppercase text-slate-800 dark:text-white transition-colors">{row.period}</p>
                                             </div>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{row.label}</p>
-                                            <p className={`text-2xl font-black ${row.color || 'text-white'}`}>{formatCOP(row.amount)}</p>
+                                            <p className={`text-2xl font-black ${row.color || 'text-slate-800 dark:text-white'} transition-colors`}>{formatCOP(row.amount)}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -226,27 +255,27 @@ const DashboardAdmin = () => {
                         </div>
 
                         {/* User Distribution Chart Placeholder */}
-                        <div className="bg-surface-dark border border-border-dark rounded-[2.5rem] p-8 flex flex-col justify-between">
-                            <h3 className="text-xl font-black uppercase italic mb-8">Estado de Atletas</h3>
+                        <div className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-[2.5rem] p-8 flex flex-col justify-between transition-all">
+                            <h3 className="text-xl font-black uppercase italic mb-8 text-slate-800 dark:text-white transition-colors">Estado de Atletas</h3>
 
                             <div className="flex-1 flex flex-col justify-center items-center gap-8">
-                                <div className="size-48 rounded-full border-[12px] border-primary flex items-center justify-center relative shadow-[0_0_50px_rgba(13,242,89,0.1)]">
+                                <div className="size-48 rounded-full border-[12px] border-primary flex items-center justify-center relative shadow-lg dark:shadow-[0_0_50px_rgba(13,242,89,0.1)] transition-all">
                                     <div className="absolute inset-[-12px] rounded-full border-[12px] border-red-500 border-t-transparent border-r-transparent -rotate-45" style={{ transform: `rotate(${(stats.retentionRate * 3.6) - 90}deg)` }}></div>
                                     <div className="text-center">
-                                        <p className="text-4xl font-black italic">{stats.activeUsers}</p>
+                                        <p className="text-4xl font-black italic text-slate-800 dark:text-white transition-colors">{stats.activeUsers}</p>
                                         <p className="text-[10px] font-black text-slate-500 uppercase">Activos</p>
                                     </div>
                                 </div>
 
                                 <div className="w-full space-y-4">
-                                    <div className="flex justify-between items-center text-sm font-bold">
+                                    <div className="flex justify-between items-center text-sm font-bold text-slate-800 dark:text-white transition-colors">
                                         <div className="flex items-center gap-2">
                                             <span className="size-3 rounded-full bg-primary"></span>
                                             <span>Membresías activas</span>
                                         </div>
                                         <span>{stats.retentionRate}%</span>
                                     </div>
-                                    <div className="flex justify-between items-center text-sm font-bold">
+                                    <div className="flex justify-between items-center text-sm font-bold text-slate-800 dark:text-white transition-colors">
                                         <div className="flex items-center gap-2">
                                             <span className="size-3 rounded-full bg-red-500"></span>
                                             <span>Sin plan/vencidos</span>
@@ -256,7 +285,7 @@ const DashboardAdmin = () => {
                                 </div>
                             </div>
 
-                            <button className="w-full mt-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-white/10 transition-all">Ver todos los socios</button>
+                            <button className="w-full mt-8 py-4 bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-black/10 dark:hover:bg-white/10 transition-all text-slate-600 dark:text-slate-400">Ver todos los socios</button>
                         </div>
                     </div>
                 </div>
