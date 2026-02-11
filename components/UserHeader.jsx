@@ -116,7 +116,7 @@ const UserHeader = () => {
     };
 
     return (
-        <header className="flex items-center justify-between border-b border-border-dark px-6 py-3 md:px-10 md:py-5 bg-background-dark/80 backdrop-blur-xl sticky top-0 z-50">
+        <header className="flex items-center justify-between border-b border-border-light dark:border-border-dark px-6 py-3 md:px-10 md:py-5 bg-surface-light/80 dark:bg-background-dark/80 backdrop-blur-xl sticky top-0 z-50 transition-colors">
             <div className="flex items-center gap-4 group">
                 <Link to="/user-plan" className="flex items-center gap-3">
                     <div className="size-10 rounded-xl bg-surface-dark border border-primary/30 shadow-[0_0_20px_rgba(13,242,89,0.1)] overflow-hidden flex items-center justify-center shrink-0">
@@ -127,7 +127,7 @@ const UserHeader = () => {
                         )}
                     </div>
                     <div className="min-w-0">
-                        <h2 className="text-sm font-black leading-tight tracking-tighter text-white uppercase italic truncate max-w-[150px]">
+                        <h2 className="text-sm font-black leading-tight tracking-tighter text-slate-900 dark:text-white uppercase italic truncate max-w-[150px]">
                             {profile?.gyms?.name || 'Cargando...'}
                         </h2>
                         <span className="text-[7px] font-black text-slate-500 uppercase tracking-[0.3em] block -mt-1">Athlete Ecosystem</span>
@@ -157,7 +157,7 @@ const UserHeader = () => {
                     ))}
                 </nav>
 
-                <div className="flex items-center gap-4 border-l border-white/10 pl-8 relative">
+                <div className="flex items-center gap-4 border-l border-black/10 dark:border-white/10 pl-8 relative">
                     {/* Botón de Notificaciones */}
                     <button
                         onClick={handleNotificationClick}
@@ -175,8 +175,8 @@ const UserHeader = () => {
                     {showNotifications && (
                         <>
                             <div className="fixed inset-0 z-[-1]" onClick={() => setShowNotifications(false)}></div>
-                            <div className="absolute top-12 right-0 w-80 bg-surface-dark border border-border-dark rounded-3xl shadow-2xl overflow-hidden animate-fadeInUp origin-top-right">
-                                <div className="p-4 bg-background-dark/50 border-b border-border-dark flex justify-between items-center">
+                            <div className="absolute top-12 right-0 w-80 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-3xl shadow-2xl overflow-hidden animate-fadeInUp origin-top-right transition-colors">
+                                <div className="p-4 bg-black/5 dark:bg-background-dark/50 border-b border-border-light dark:border-border-dark flex justify-between items-center transition-colors">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Alertas Recientes</span>
                                     <span className="text-[8px] font-black uppercase text-primary px-2 py-0.5 bg-primary/10 rounded-full">{unreadCount} nuevas</span>
                                 </div>
@@ -191,14 +191,14 @@ const UserHeader = () => {
                                                     if (n.type === 'store_update') navigate('/store');
                                                     if (n.type === 'membership_expiry') navigate('/user-profile');
                                                 }}
-                                                className={`p-4 flex gap-3 hover:bg-white/5 border-b border-white/5 transition-colors cursor-pointer ${!n.is_read ? 'bg-primary/5' : ''}`}
+                                                className={`p-4 flex gap-3 hover:bg-black/5 dark:hover:bg-white/5 border-b border-black/5 dark:border-white/5 transition-colors cursor-pointer ${!n.is_read ? 'bg-primary/5' : ''}`}
                                             >
                                                 <div className={`size-8 rounded-lg flex items-center justify-center shrink-0 ${getNotificationColor(n.type)}`}>
                                                     <span className="material-symbols-outlined text-lg">{getNotificationIcon(n.type)}</span>
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex justify-between items-start gap-2">
-                                                        <p className={`text-xs font-black uppercase italic ${!n.is_read ? 'text-white' : 'text-slate-400'}`}>{n.title}</p>
+                                                        <p className={`text-xs font-black uppercase italic ${!n.is_read ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>{n.title}</p>
                                                         {n.priority && <span className="size-1.5 rounded-full bg-red-500 animate-ping shrink-0"></span>}
                                                     </div>
                                                     <p className="text-[10px] text-slate-500 mt-1 leading-relaxed line-clamp-2 italic">{n.message}</p>
@@ -208,12 +208,12 @@ const UserHeader = () => {
                                         ))
                                     ) : (
                                         <div className="p-12 text-center flex flex-col items-center gap-4">
-                                            <span className="material-symbols-outlined text-4xl text-slate-800">notifications_off</span>
+                                            <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-800 transition-colors">notifications_off</span>
                                             <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Sin notificaciones pendientes</p>
                                         </div>
                                     )}
                                 </div>
-                                <Link to="/user-profile" onClick={() => setShowNotifications(false)} className="block p-3 text-center bg-background-dark/50 text-[10px] font-black uppercase text-slate-400 hover:text-white transition-colors border-t border-border-dark">
+                                <Link to="/user-profile" onClick={() => setShowNotifications(false)} className="block p-3 text-center bg-black/5 dark:bg-background-dark/50 text-[10px] font-black uppercase text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors border-t border-border-light dark:border-border-dark">
                                     Ver todas las alertas
                                 </Link>
                             </div>

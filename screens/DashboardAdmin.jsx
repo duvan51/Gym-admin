@@ -3,7 +3,7 @@ import AdminSidebar from '../components/AdminSidebar';
 import { getAdminInsights } from '../services/geminiService';
 import { supabase } from '../services/supabaseClient';
 
-const DashboardAdmin = () => {
+const DashboardAdmin = ({ darkMode, toggleDarkMode }) => {
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
         totalRevenue: 0,
@@ -110,7 +110,7 @@ const DashboardAdmin = () => {
     if (loading) {
         return (
             <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-slate-800 dark:text-white font-display transition-colors">
-                <AdminSidebar />
+                <AdminSidebar darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
                 <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
                         <div className="size-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
@@ -123,18 +123,18 @@ const DashboardAdmin = () => {
 
     return (
         <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-slate-800 dark:text-white font-display transition-colors">
-            <AdminSidebar />
+            <AdminSidebar darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
 
-            <main className="flex-1 flex flex-col h-screen overflow-hidden">
-                <header className="px-10 py-8 border-b border-border-light dark:border-border-dark bg-surface-light/30 dark:bg-surface-dark/30 backdrop-blur-md flex justify-between items-center shrink-0 transition-colors">
+            <main className="flex-1 flex flex-col h-screen overflow-hidden pt-16 lg:pt-0">
+                <header className="px-6 md:px-10 py-6 md:py-8 border-b border-border-light dark:border-border-dark bg-surface-light/30 dark:bg-surface-dark/30 backdrop-blur-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0 transition-colors">
                     <div>
-                        <h1 className="text-4xl font-black uppercase italic tracking-tighter text-slate-800 dark:text-white transition-colors">Executive <span className="text-primary">Dashboard</span></h1>
-                        <p className="text-slate-500 text-sm font-bold uppercase tracking-[0.2em] mt-1">Reporte financiero y operativo real</p>
+                        <h1 className="text-2xl md:text-4xl font-black uppercase italic tracking-tighter text-slate-800 dark:text-white transition-colors">Executive <span className="text-primary">Dashboard</span></h1>
+                        <p className="text-slate-500 text-[10px] md:text-sm font-bold uppercase tracking-[0.2em] mt-1">Reporte financiero y operativo real</p>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <div className="bg-black/5 dark:bg-background-dark/50 px-6 py-2 rounded-2xl border border-black/5 dark:border-white/5 text-right transition-colors">
-                            <p className="text-[10px] font-black text-slate-500 uppercase">Estado del Sistema</p>
-                            <p className="text-primary text-xs font-black uppercase tracking-widest flex items-center gap-2 justify-end">
+                    <div className="flex items-center gap-4 w-full md:w-auto">
+                        <div className="bg-black/5 dark:bg-background-dark/50 px-4 md:px-6 py-2 rounded-2xl border border-black/5 dark:border-white/5 text-left md:text-right transition-colors w-full md:w-auto">
+                            <p className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase text-center md:text-right">Estado del Sistema</p>
+                            <p className="text-primary text-[10px] md:text-xs font-black uppercase tracking-widest flex items-center gap-2 justify-center md:justify-end">
                                 <span className="size-2 rounded-full bg-primary animate-pulse"></span> Sincronizado
                             </p>
                         </div>
@@ -159,7 +159,7 @@ const DashboardAdmin = () => {
                     </div>
                 )}
 
-                <div className="flex-1 p-10 overflow-y-auto custom-scrollbar space-y-8 pb-20">
+                <div className="flex-1 p-6 md:p-10 overflow-y-auto custom-scrollbar space-y-8 pb-32 lg:pb-20">
                     {/* IA Insights Row */}
                     <section className="bg-primary/5 border border-primary/20 rounded-[2.5rem] p-8 flex items-center gap-6 animate-fadeIn transition-colors">
                         <div className="size-16 rounded-2xl bg-primary/20 flex items-center justify-center border border-primary/30 shrink-0">
@@ -235,9 +235,9 @@ const DashboardAdmin = () => {
                                     { period: "Este Mes", amount: stats.monthlyRevenue, label: "Recaudo Bruto (Caja)", color: "text-primary" },
                                     { period: "Histórico", amount: stats.totalRevenue, label: "Total Producido" }
                                 ].map((row, i) => (
-                                    <div key={i} className="flex items-center justify-between p-6 rounded-[2rem] bg-black/5 dark:bg-background-dark/30 border border-black/5 dark:border-white/5 group hover:border-primary/20 transition-all">
-                                        <div className="flex items-center gap-6">
-                                            <div className="size-12 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors">
+                                    <div key={i} className="flex flex-col sm:flex-row items-center justify-between p-6 rounded-[2rem] bg-black/5 dark:bg-background-dark/30 border border-black/5 dark:border-white/5 group hover:border-primary/20 transition-all gap-4 sm:gap-0">
+                                        <div className="flex items-center gap-6 w-full sm:w-auto">
+                                            <div className="size-12 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors shrink-0">
                                                 <span className="material-symbols-outlined">calendar_today</span>
                                             </div>
                                             <div>
@@ -245,7 +245,7 @@ const DashboardAdmin = () => {
                                                 <p className="font-black text-lg italic uppercase text-slate-800 dark:text-white transition-colors">{row.period}</p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
+                                        <div className="text-center sm:text-right w-full sm:w-auto">
                                             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{row.label}</p>
                                             <p className={`text-2xl font-black ${row.color || 'text-slate-800 dark:text-white'} transition-colors`}>{formatCOP(row.amount)}</p>
                                         </div>

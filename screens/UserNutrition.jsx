@@ -262,7 +262,7 @@ const UserNutrition = () => {
         <div className="min-h-screen bg-background-dark text-white font-display pb-20">
             <UserHeader />
 
-            <main className="max-w-[1400px] mx-auto p-6 md:p-10 space-y-10">
+            <main className="max-w-[1400px] mx-auto p-6 md:p-10 pb-32 space-y-10">
                 {/* Annual Goal Banner */}
                 <section className="bg-primary/10 border border-primary/20 rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden group">
                     <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:scale-110 transition-transform">

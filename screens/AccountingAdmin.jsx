@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AdminSidebar from '../components/AdminSidebar';
 import { supabase } from '../services/supabaseClient';
 
-const AccountingAdmin = () => {
+const AccountingAdmin = ({ darkMode, toggleDarkMode }) => {
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
         totalRevenue: 0,
@@ -74,7 +74,7 @@ const AccountingAdmin = () => {
 
     return (
         <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-slate-800 dark:text-white font-display transition-colors">
-            <AdminSidebar />
+            <AdminSidebar darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
 
             <main className="flex-1 flex flex-col h-screen overflow-hidden">
                 <header className="px-10 py-8 border-b border-border-light dark:border-border-dark bg-surface-light/30 dark:bg-surface-dark/30 backdrop-blur-md flex justify-between items-center shrink-0 transition-colors">
@@ -84,7 +84,7 @@ const AccountingAdmin = () => {
                     </div>
                 </header>
 
-                <div className="flex-1 p-10 overflow-y-auto custom-scrollbar space-y-8 pb-20">
+                <div className="flex-1 p-10 overflow-y-auto custom-scrollbar space-y-8 pb-32">
                     {/* Date Filters Row */}
                     <section className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-[2.5rem] p-8 transition-all">
                         <div className="flex flex-col md:flex-row justify-between items-center gap-6">

@@ -3,7 +3,7 @@ import AdminSidebar from '../components/AdminSidebar';
 import { supabase } from '../services/supabaseClient';
 import { useReactToPrint } from 'react-to-print';
 
-const AnalyticsReport = () => {
+const AnalyticsReport = ({ darkMode, toggleDarkMode }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [showAddModal, setShowAddModal] = useState(false);
@@ -470,43 +470,40 @@ const AnalyticsReport = () => {
     const userInHistory = users.find(u => u.id === showHistoryModal);
 
     return (
-        <div className="flex min-h-screen bg-background-dark text-white font-display">
-            <AdminSidebar />
+        <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-slate-800 dark:text-white font-display transition-colors">
+            <AdminSidebar darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
 
-            <main className="flex-1 flex flex-col h-screen overflow-hidden">
-                <header className="px-10 py-8 flex items-center justify-between border-b border-border-dark bg-surface-dark/50 backdrop-blur-md">
+            <main className="flex-1 flex flex-col h-screen overflow-hidden pt-16 lg:pt-0">
+                <header className="px-6 md:px-10 py-6 md:py-8 border-b border-border-light dark:border-border-dark bg-surface-light/30 dark:bg-surface-dark/30 backdrop-blur-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0 transition-colors">
                     <div>
-                        <h1 className="text-4xl font-black uppercase italic tracking-tighter">
-                            Panel de <span className="text-primary">Socios</span>
-                        </h1>
-                        <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-1">Gestión administrativa y auditoría COP</p>
+                        <h1 className="text-2xl md:text-4xl font-black uppercase italic tracking-tighter text-slate-800 dark:text-white transition-colors">Consola de <span className="text-primary">Socios</span></h1>
+                        <p className="text-slate-500 text-[10px] md:text-sm font-bold uppercase tracking-[0.2em] mt-1">Gestión administrativa de membresías</p>
                     </div>
-
-                    <div className="flex items-center gap-6">
-                        <div className="relative group">
-                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors">search</span>
+                    <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+                        <div className="relative w-full sm:w-64">
+                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-lg">search</span>
                             <input
                                 type="text"
-                                placeholder="Nombre, email o teléfono..."
-                                className="bg-background-dark/50 border-2 border-border-dark rounded-2xl py-3 pl-12 pr-6 text-sm w-80 focus:border-primary transition-all outline-none"
+                                placeholder="Buscar socio..."
+                                className="w-full bg-black/5 dark:bg-background-dark/50 border border-black/5 dark:border-white/5 rounded-2xl py-3 pl-12 pr-4 text-sm focus:border-primary transition-all outline-none"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
                         <button
                             onClick={() => setShowAddModal(true)}
-                            className="bg-primary text-background-dark font-black px-8 py-3.5 rounded-2xl uppercase tracking-widest text-xs hover:shadow-[0_0_30px_rgba(13,242,89,0.3)] transition-all flex items-center gap-2"
+                            className="w-full sm:w-auto px-6 py-3 bg-primary text-white rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:shadow-[0_0_30px_rgba(59,130,246,0.3)] transition-all active:scale-95"
                         >
                             <span className="material-symbols-outlined text-lg">person_add</span>
-                            Vincular Socio
+                            Socio
                         </button>
                     </div>
                 </header>
 
-                <div className="flex-1 p-10 overflow-y-auto custom-scrollbar space-y-8">
-                    {/* Tarjetas de Estadísticas Rápidas */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-surface-dark border border-border-dark p-8 rounded-[2.5rem] relative overflow-hidden group">
+                <div className="flex-1 p-4 md:p-10 overflow-y-auto custom-scrollbar space-y-8 pb-32 lg:pb-10">
+                    {/* Tarjetas Informativas */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                        <div className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark p-8 rounded-[2.5rem] relative overflow-hidden group">
                             <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
                                 <span className="material-symbols-outlined text-6xl">payments</span>
                             </div>
@@ -559,7 +556,7 @@ const AnalyticsReport = () => {
                                 onClick={() => setFilterStatus(tab.id)}
                                 className={`flex items-center gap-3 px-6 py-3 rounded-2xl border transition-all uppercase text-[10px] font-black tracking-widest ${filterStatus === tab.id
                                     ? 'bg-primary/10 border-primary text-primary'
-                                    : 'bg-surface-dark border-border-dark text-slate-500 hover:text-white/20'
+                                    : 'bg-surface-light dark:bg-surface-dark border-border-light dark:border-border-dark text-slate-500 hover:text-slate-700 dark:hover:text-white/20'
                                     }`}
                             >
                                 <span className="material-symbols-outlined text-lg">{tab.icon}</span>
@@ -568,10 +565,10 @@ const AnalyticsReport = () => {
                         ))}
                     </div>
 
-                    <div className="bg-surface-dark border border-border-dark rounded-[2.5rem] overflow-hidden shadow-2xl">
-                        <table className="w-full text-left border-collapse">
+                    <div className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-[1.5rem] md:rounded-[3rem] overflow-x-auto shadow-2xl transition-all scrollbar-hide">
+                        <table className="w-full text-left min-w-[1200px]">
                             <thead>
-                                <tr className="bg-background-dark/50 border-b border-border-dark">
+                                <tr className="bg-black/5 dark:bg-background-dark/50 border-b border-border-light dark:border-border-dark">
                                     <th className="px-8 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Socio</th>
                                     <th className="px-8 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Membresía</th>
                                     <th className="px-8 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Fecha Registro</th>

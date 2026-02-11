@@ -204,19 +204,25 @@ const UserPlan = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-background-dark flex items-center justify-center font-display">
-                <div className="text-center">
-                    <div className="size-20 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-                    <p className="text-primary font-black animate-pulse uppercase tracking-[0.3em] text-sm">Calculando con IA...</p>
+            <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col items-center justify-center font-display transition-colors">
+                <div className="relative">
+                    <div className="size-24 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-primary text-4xl animate-pulse">model_training</span>
+                    </div>
+                </div>
+                <div className="mt-10 text-center animate-in fade-in zoom-in duration-700">
+                    <h2 className="text-slate-900 dark:text-white font-black uppercase italic tracking-widest text-sm mb-2 transition-colors">Personalizando tu Plan</h2>
+                    <p className="text-slate-500 text-xs md:text-sm font-medium leading-relaxed max-w-md">Estamos analizando tus datos para crear una rutina y plan nutricional óptimos.</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-background-dark text-white font-display selection:bg-primary selection:text-black">
+        <div className="min-h-screen bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display selection:bg-primary selection:text-black transition-colors">
             <UserHeader />
-            <main className="max-w-[1200px] mx-auto px-4 md:px-6 py-10">
+            <main className="max-w-[1200px] mx-auto px-4 md:px-6 py-10 pb-32">
 
                 {/* Banner de Alerta de Vencimiento */}
                 {isExpiringSoon && (
@@ -246,9 +252,9 @@ const UserPlan = () => {
                             Tu Centro de <span className="text-primary">Poder</span>
                         </h1>
                     </div>
-                    <div className="w-full md:w-auto bg-surface-dark border border-white/10 rounded-2xl px-6 py-4 flex flex-col items-center md:items-end">
+                    <div className="w-full md:w-auto bg-surface-light dark:bg-surface-dark border border-black/5 dark:border-white/10 rounded-2xl px-6 py-4 flex flex-col items-center md:items-end transition-colors shadow-sm dark:shadow-none">
                         <span className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest">Hoy</span>
-                        <span className="text-base md:text-xl font-black italic text-white text-center md:text-right">
+                        <span className="text-base md:text-xl font-black italic text-slate-800 dark:text-white text-center md:text-right transition-colors">
                             {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
                         </span>
                     </div>
@@ -257,7 +263,7 @@ const UserPlan = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                     {/* Main Training Plan */}
                     <div className="lg:col-span-8 space-y-8 animate-fadeInUp">
-                        <section className="group relative overflow-hidden rounded-[2.5rem] bg-surface-dark border border-border-dark transition-all hover:border-primary/40">
+                        <section className="group relative overflow-hidden rounded-[2.5rem] bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark transition-all hover:border-primary/40 shadow-sm dark:shadow-none">
                             <div className="absolute inset-0 bg-gradient-to-t from-background-dark via-transparent to-transparent z-10"></div>
                             <div className="w-full bg-center bg-no-repeat aspect-[21/9] bg-cover transition-transform duration-1000 group-hover:scale-105" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=1470&auto=format&fit=crop')" }}></div>
 

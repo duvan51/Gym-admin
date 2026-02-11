@@ -275,7 +275,7 @@ const Login = () => {
 
     if (loading && !showLoginForm) {
         return (
-            <div className="min-h-screen bg-background-dark flex flex-col items-center justify-center font-display">
+            <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col items-center justify-center font-display transition-colors">
                 <div className="relative">
                     <div className="size-24 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
                     <div className="absolute inset-0 flex items-center justify-center">
@@ -283,7 +283,7 @@ const Login = () => {
                     </div>
                 </div>
                 <div className="mt-8 text-center animate-in fade-in zoom-in duration-700">
-                    <h2 className="text-white font-black uppercase italic tracking-widest text-sm mb-2">Sincronizando Acceso</h2>
+                    <h2 className="text-slate-900 dark:text-white font-black uppercase italic tracking-widest text-sm mb-2 transition-colors">Sincronizando Acceso</h2>
                     <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em] mb-4">Preparando tu ecosistema personal...</p>
                     <div className="flex justify-center gap-1.5">
                         <div className="size-1 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></div>
@@ -296,7 +296,7 @@ const Login = () => {
     }
 
     return (
-        <div className="min-h-screen bg-background-dark flex flex-col items-center justify-center p-6 relative overflow-hidden font-display selection:bg-primary selection:text-black">
+        <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col items-center justify-center p-6 relative overflow-hidden font-display selection:bg-primary selection:text-black transition-colors">
             {/* Background elements */}
             <div className="absolute top-[-15%] right-[-10%] size-[600px] bg-primary/10 blur-[140px] rounded-full animate-pulse"></div>
             <div className="absolute bottom-[-15%] left-[-10%] size-[600px] bg-primary-blue/10 blur-[140px] rounded-full animate-pulse" style={{ animationDelay: '2s' }}></div>
@@ -308,7 +308,7 @@ const Login = () => {
                             <div className="bg-primary/20 p-5 rounded-3xl mb-6 shadow-[0_0_50px_rgba(13,242,89,0.3)] border border-primary/30">
                                 <span className="material-symbols-outlined text-primary text-6xl">fitness_center</span>
                             </div>
-                            <h1 className="text-6xl md:text-8xl font-black text-white tracking-tighter uppercase leading-none">
+                            <h1 className="text-6xl md:text-8xl font-black text-slate-900 dark:text-white tracking-tighter uppercase leading-none transition-colors">
                                 Desarrollando <span className="text-primary italic">ando</span>
                             </h1>
                             <p className="text-slate-400 mt-6 text-xl font-medium tracking-widest uppercase opacity-70">
@@ -321,29 +321,29 @@ const Login = () => {
                                 <div
                                     key={sector.id}
                                     onClick={() => handleSectorSelect(sector)}
-                                    className="group relative h-[480px] bg-surface-dark border border-border-dark rounded-[2.5rem] overflow-hidden cursor-pointer transition-all duration-500 hover:border-primary/50 hover:-translate-y-4 hover:shadow-[0_30px_60px_rgba(0,0,0,0.8)] animate-fadeInUp"
+                                    className="group relative h-[480px] bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-[2.5rem] overflow-hidden cursor-pointer transition-all duration-500 hover:border-primary/50 hover:-translate-y-4 hover:shadow-[0_30px_60px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_30px_60px_rgba(0,0,0,0.8)] animate-fadeInUp"
                                     style={{ animationDelay: `${index * 0.1}s` }}
                                 >
                                     <div
                                         className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 group-hover:scale-110"
                                         style={{ backgroundImage: `url('${sector.image}')` }}
                                     ></div>
-                                    <div className="absolute inset-0 bg-gradient-to-t from-background-dark via-background-dark/80 to-transparent"></div>
+                                    <div className="absolute inset-0 bg-gradient-to-t from-background-light/90 dark:from-background-dark/95 via-background-light/40 dark:via-background-dark/80 to-transparent transition-colors"></div>
 
-                                    <div className="absolute top-8 left-8 p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20">
-                                        <span className="material-symbols-outlined text-white text-2xl group-hover:text-primary transition-colors">{sector.icon}</span>
+                                    <div className="absolute top-8 left-8 p-3 rounded-2xl bg-black/5 dark:bg-white/10 backdrop-blur-md border border-black/10 dark:border-white/20 transition-colors">
+                                        <span className="material-symbols-outlined text-slate-900 dark:text-white text-2xl group-hover:text-primary transition-colors">{sector.icon}</span>
                                     </div>
 
                                     <div className="absolute inset-0 p-10 flex flex-col justify-end">
                                         <div className="mb-4">
-                                            <span className={`text-[10px] font-black tracking-[0.3em] uppercase px-4 py-1.5 rounded-full bg-white/10 text-white border border-white/20 backdrop-blur-sm`}>
+                                            <span className={`text-[10px] font-black tracking-[0.3em] uppercase px-4 py-1.5 rounded-full bg-black/5 dark:bg-white/10 text-slate-900 dark:text-white border border-black/10 dark:border-white/20 backdrop-blur-sm transition-colors`}>
                                                 {sector.subtitle}
                                             </span>
                                         </div>
-                                        <h3 className="text-4xl font-black text-white uppercase italic leading-tight group-hover:text-primary transition-colors duration-300">
+                                        <h3 className="text-4xl font-black text-slate-900 dark:text-white uppercase italic leading-tight group-hover:text-primary transition-colors duration-300">
                                             {sector.title}
                                         </h3>
-                                        <p className="text-slate-300 text-base leading-relaxed mt-4 opacity-80 group-hover:opacity-100 transition-opacity duration-300">
+                                        <p className="text-slate-600 dark:text-slate-300 text-base leading-relaxed mt-4 opacity-80 group-hover:opacity-100 transition-opacity duration-300">
                                             {sector.desc}
                                         </p>
 
@@ -365,13 +365,13 @@ const Login = () => {
                             Volver a selección
                         </button>
 
-                        <div className="bg-surface-dark border border-border-dark p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
+                        <div className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden transition-colors">
                             <div className={`absolute top-0 right-0 p-6 opacity-20`}>
                                 <span className="material-symbols-outlined text-8xl text-primary">{selectedSector.icon}</span>
                             </div>
 
                             <header className="relative z-10 mb-10">
-                                <h2 className="text-4xl font-black text-white uppercase italic tracking-tight">
+                                <h2 className="text-4xl font-black text-slate-900 dark:text-white uppercase italic tracking-tight transition-colors">
                                     Login <span className="text-primary">{selectedSector.title}</span>
                                 </h2>
                                 <p className="text-slate-400 mt-2 font-medium">Introduce tus credenciales de acceso</p>
@@ -395,7 +395,7 @@ const Login = () => {
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
                                             placeholder="ejemplo@gym.com"
-                                            className="w-full bg-background-dark/50 border-2 border-border-dark rounded-2xl py-4 pl-12 pr-4 text-white placeholder:text-slate-600 focus:border-primary focus:ring-0 transition-all outline-none"
+                                            className="w-full bg-black/5 dark:bg-background-dark/50 border-2 border-border-light dark:border-border-dark rounded-2xl py-4 pl-12 pr-4 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:border-primary focus:ring-0 transition-all outline-none"
                                         />
                                     </div>
                                 </div>
@@ -410,7 +410,7 @@ const Login = () => {
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
                                             placeholder="••••••••"
-                                            className="w-full bg-background-dark/50 border-2 border-border-dark rounded-2xl py-4 pl-12 pr-4 text-white placeholder:text-slate-600 focus:border-primary focus:ring-0 transition-all outline-none"
+                                            className="w-full bg-black/5 dark:bg-background-dark/50 border-2 border-border-light dark:border-border-dark rounded-2xl py-4 pl-12 pr-4 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:border-primary focus:ring-0 transition-all outline-none"
                                         />
                                     </div>
                                 </div>
@@ -443,14 +443,14 @@ const Login = () => {
                                         <div className="w-full border-t border-border-dark"></div>
                                     </div>
                                     <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest">
-                                        <span className="bg-surface-dark px-4 text-slate-500">O continuar con</span>
+                                        <span className="bg-surface-light dark:bg-surface-dark px-4 text-slate-500 transition-colors">O continuar con</span>
                                     </div>
                                 </div>
 
                                 <button
                                     type="button"
                                     onClick={handleGoogleLogin}
-                                    className="w-full bg-white/5 border border-white/10 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 transition-all uppercase tracking-widest text-xs"
+                                    className="w-full bg-black/5 dark:bg-white/5 border border-border-light dark:border-white/10 text-slate-900 dark:text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-black/10 dark:hover:bg-white/10 transition-all uppercase tracking-widest text-xs"
                                 >
                                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="size-5" alt="Google" />
                                     Google Account

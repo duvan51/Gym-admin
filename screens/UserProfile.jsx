@@ -121,7 +121,7 @@ const UserProfile = () => {
         <div className="min-h-screen bg-background-dark text-white font-display pb-20">
             <UserHeader />
 
-            <main className="max-w-[1200px] mx-auto px-6 py-10">
+            <main className="max-w-[1200px] mx-auto px-6 py-10 pb-32">
                 {/* Success Notification Overlay */}
                 {showPaymentSuccess && (
                     <div className="mb-10 bg-primary/20 border border-primary/30 p-8 rounded-[2.5rem] flex items-center justify-between animate-fadeInDown shadow-[0_0_50px_rgba(13,242,89,0.1)]">

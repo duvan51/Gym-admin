@@ -3,7 +3,7 @@ import { supabase } from '../services/supabaseClient';
 import { notificationService } from '../services/notificationService';
 import AdminSidebar from '../components/AdminSidebar';
 
-const StoreAdmin = () => {
+const StoreAdmin = ({ darkMode, toggleDarkMode }) => {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -175,14 +175,14 @@ const StoreAdmin = () => {
     };
 
     return (
-        <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display">
-            <AdminSidebar />
+        <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-slate-800 dark:text-white font-display transition-colors">
+            <AdminSidebar darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
 
-            <main className="flex-1 p-10 overflow-y-auto">
-                <header className="flex justify-between items-center mb-12">
+            <main className="flex-1 flex flex-col h-screen overflow-hidden pt-16 lg:pt-0 transition-all pb-32">
+                <header className="px-6 md:px-10 py-6 md:py-8 border-b border-border-light dark:border-border-dark bg-surface-light/30 dark:bg-surface-dark/30 backdrop-blur-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0 transition-colors">
                     <div>
-                        <h1 className="text-4xl font-black uppercase italic tracking-tighter">Marketplace <span className="text-primary">Interno</span></h1>
-                        <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.3em] mt-2">Gestiona productos y servicios extras para tus socios</p>
+                        <h1 className="text-2xl md:text-4xl font-black uppercase italic tracking-tighter text-slate-800 dark:text-white transition-colors">Marketplace <span className="text-primary">Interno</span></h1>
+                        <p className="text-slate-500 text-[10px] md:text-sm font-bold uppercase tracking-[0.2em] mt-1">Gestiona productos y servicios extras para tus socios</p>
                     </div>
                     <button
                         onClick={() => {
@@ -192,90 +192,92 @@ const StoreAdmin = () => {
                             setFormData({ name: '', description: '', price: '', category: 'suplementos', stock: 0, is_available: true, image_url: '' });
                             setShowAddModal(true);
                         }}
-
-                        className="bg-primary text-background-dark px-8 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-all shadow-xl shadow-primary/20"
+                        className="w-full md:w-auto px-8 py-4 bg-primary text-white rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 hover:shadow-[0_0_30px_rgba(33,150,243,0.3)] transition-all active:scale-95 shadow-xl"
                     >
                         <span className="material-symbols-outlined">add_circle</span>
                         Nuevo Producto
                     </button>
                 </header>
 
-                {loading && products.length === 0 ? (
-                    <div className="flex justify-center py-20">
-                        <div className="size-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                        {products.map(product => (
-                            <div key={product.id} className="bg-surface-dark border border-white/5 rounded-[2.5rem] overflow-hidden group hover:border-primary/30 transition-all flex flex-col">
-                                <div className="aspect-square bg-background-dark relative overflow-hidden">
-                                    {product.image_url ? (
-                                        <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-slate-700">
-                                            <span className="material-symbols-outlined text-6xl">inventory_2</span>
-                                        </div>
-                                    )}
-                                    <div className="absolute top-4 right-4 flex gap-2">
-                                        <button
-                                            onClick={() => {
-                                                setEditingProduct(product);
-                                                setImageFile(null);
-                                                setImagePreview(product.image_url || '');
-                                                setFormData({
-                                                    name: product.name,
-                                                    description: product.description,
-                                                    price: product.price,
-                                                    category: product.category,
-                                                    stock: product.stock,
-                                                    is_available: product.is_available,
-                                                    image_url: product.image_url || ''
-                                                });
-                                                setShowAddModal(true);
-                                            }}
+                <div className="flex-1 p-6 md:p-10 overflow-y-auto">
 
-                                            className="size-10 rounded-xl bg-background-dark/80 backdrop-blur-md text-white flex items-center justify-center hover:bg-primary hover:text-background-dark transition-all"
-                                        >
-                                            <span className="material-symbols-outlined text-sm">edit</span>
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteProduct(product.id)}
-                                            className="size-10 rounded-xl bg-background-dark/80 backdrop-blur-md text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all"
-                                        >
-                                            <span className="material-symbols-outlined text-sm">delete</span>
-                                        </button>
-                                    </div>
-                                    <div className="absolute bottom-4 left-4">
-                                        <span className="px-3 py-1 rounded-lg bg-primary/20 backdrop-blur-md text-primary text-[8px] font-black uppercase tracking-widest border border-primary/20">
-                                            {product.category}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="p-6 flex-1 flex flex-col">
-                                    <h3 className="text-xl font-black uppercase italic mb-2 group-hover:text-primary transition-colors">{product.name}</h3>
-                                    <p className="text-slate-500 text-xs font-medium mb-4 line-clamp-2">{product.description}</p>
-                                    <div className="mt-auto flex justify-between items-center">
-                                        <span className="text-2xl font-black italic">{formatCurrency(product.price)}</span>
-                                        <div className="flex flex-col items-end">
-                                            <span className={`text-[9px] font-black uppercase tracking-widest ${product.is_available ? 'text-primary' : 'text-red-500'}`}>
-                                                {product.is_available ? 'Disponible' : 'Agotado'}
+                    {loading && products.length === 0 ? (
+                        <div className="flex justify-center py-20">
+                            <div className="size-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                            {products.map(product => (
+                                <div key={product.id} className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-white/5 rounded-[2.5rem] overflow-hidden group hover:border-primary/30 transition-all flex flex-col shadow-sm">
+                                    <div className="aspect-square bg-slate-100 dark:bg-background-dark relative overflow-hidden">
+                                        {product.image_url ? (
+                                            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-slate-700">
+                                                <span className="material-symbols-outlined text-6xl">inventory_2</span>
+                                            </div>
+                                        )}
+                                        <div className="absolute top-4 right-4 flex gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    setEditingProduct(product);
+                                                    setImageFile(null);
+                                                    setImagePreview(product.image_url || '');
+                                                    setFormData({
+                                                        name: product.name,
+                                                        description: product.description,
+                                                        price: product.price,
+                                                        category: product.category,
+                                                        stock: product.stock,
+                                                        is_available: product.is_available,
+                                                        image_url: product.image_url || ''
+                                                    });
+                                                    setShowAddModal(true);
+                                                }}
+
+                                                className="size-10 rounded-xl bg-background-dark/80 backdrop-blur-md text-white flex items-center justify-center hover:bg-primary hover:text-background-dark transition-all"
+                                            >
+                                                <span className="material-symbols-outlined text-sm">edit</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteProduct(product.id)}
+                                                className="size-10 rounded-xl bg-background-dark/80 backdrop-blur-md text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all"
+                                            >
+                                                <span className="material-symbols-outlined text-sm">delete</span>
+                                            </button>
+                                        </div>
+                                        <div className="absolute bottom-4 left-4">
+                                            <span className="px-3 py-1 rounded-lg bg-primary/20 backdrop-blur-md text-primary text-[8px] font-black uppercase tracking-widest border border-primary/20">
+                                                {product.category}
                                             </span>
-                                            <span className="text-[10px] text-slate-600 font-bold uppercase tracking-tighter">Stock: {product.stock}</span>
+                                        </div>
+                                    </div>
+                                    <div className="p-6 flex-1 flex flex-col">
+                                        <h3 className="text-xl font-black uppercase italic mb-2 group-hover:text-primary transition-colors">{product.name}</h3>
+                                        <p className="text-slate-500 text-xs font-medium mb-4 line-clamp-2">{product.description}</p>
+                                        <div className="mt-auto flex justify-between items-center">
+                                            <span className="text-2xl font-black italic">{formatCurrency(product.price)}</span>
+                                            <div className="flex flex-col items-end">
+                                                <span className={`text-[9px] font-black uppercase tracking-widest ${product.is_available ? 'text-primary' : 'text-red-500'}`}>
+                                                    {product.is_available ? 'Disponible' : 'Agotado'}
+                                                </span>
+                                                <span className="text-[10px] text-slate-600 font-bold uppercase tracking-tighter">Stock: {product.stock}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                            ))}
+                        </div>
+                    )}
+                </div>
             </main>
 
             {/* Modal: Agregar/Editar */}
             {showAddModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-fadeIn">
                     <div className="absolute inset-0 bg-background-dark/90 backdrop-blur-xl" onClick={() => setShowAddModal(false)}></div>
-                    <div className="relative bg-surface-dark border border-white/5 w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp">
-                        <header className="bg-background-dark/50 p-10 border-b border-white/5 flex justify-between items-center">
+                    <div className="relative bg-surface-light dark:bg-surface-dark border border-border-light dark:border-white/5 w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-fadeInUp transition-colors">
+                        <header className="bg-black/5 dark:bg-background-dark/50 p-6 md:p-10 border-b border-border-light dark:border-white/5 flex justify-between items-center transition-colors">
                             <div>
                                 <h3 className="text-3xl font-black italic uppercase tracking-tighter">
                                     {editingProduct ? 'Editar' : 'Nuevo'} <span className="text-primary">Producto</span>
@@ -287,12 +289,12 @@ const StoreAdmin = () => {
                             </button>
                         </header>
 
-                        <form onSubmit={handleSaveProduct} className="p-10 grid grid-cols-2 gap-6">
+                        <form onSubmit={handleSaveProduct} className="p-6 md:p-10 grid grid-cols-2 gap-6">
                             <div className="col-span-2 space-y-2">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nombre del Producto</label>
                                 <input
                                     required
-                                    className="w-full bg-background-dark border border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary outline-none transition-all"
+                                    className="w-full bg-black/5 dark:bg-background-dark border border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm text-slate-800 dark:text-white focus:border-primary outline-none transition-all"
                                     placeholder="Ej: Creatina Monohidratada 500g"
                                     value={formData.name}
                                     onChange={e => setFormData({ ...formData, name: e.target.value })}
@@ -301,7 +303,7 @@ const StoreAdmin = () => {
                             <div className="col-span-2 space-y-2">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Descripción</label>
                                 <textarea
-                                    className="w-full bg-background-dark border border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary outline-none transition-all h-24 resize-none"
+                                    className="w-full bg-black/5 dark:bg-background-dark border border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm text-slate-800 dark:text-white focus:border-primary outline-none transition-all h-24 resize-none"
                                     placeholder="Detalles sobre beneficios, porciones, etc."
                                     value={formData.description}
                                     onChange={e => setFormData({ ...formData, description: e.target.value })}
@@ -312,7 +314,7 @@ const StoreAdmin = () => {
                                 <input
                                     required
                                     type="number"
-                                    className="w-full bg-background-dark border border-white/5 rounded-2xl py-4 px-6 text-sm focus:border-primary outline-none transition-all"
+                                    className="w-full bg-black/5 dark:bg-background-dark border border-border-light dark:border-white/5 rounded-2xl py-4 px-6 text-sm text-slate-800 dark:text-white focus:border-primary outline-none transition-all"
                                     placeholder="0"
                                     value={formData.price}
                                     onChange={e => setFormData({ ...formData, price: e.target.value })}

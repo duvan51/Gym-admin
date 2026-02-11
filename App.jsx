@@ -74,57 +74,38 @@ const App = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* Super Admin Routes */}
-          <Route element={<ProtectedRoute allowedRoles={['superadmin']} />}>
-            <Route path="/superadmin" element={<SuperAdmin />} />
-          </Route>
-
-          {/* Agent Routes */}
-          <Route element={<ProtectedRoute allowedRoles={['agent']} />}>
-            <Route path="/agent-dashboard" element={<AgentDashboard />} />
-          </Route>
-
-          {/* Admin / Gym Owner Routes */}
-          <Route element={<ProtectedRoute allowedRoles={['admin', 'superadmin']} />}>
-            <Route path="/admin" element={<DashboardAdmin />} />
-            <Route path="/accounting-admin" element={<AccountingAdmin />} />
-            <Route path="/brand-settings" element={<BrandSettings />} />
-            <Route path="/subscription-admin" element={<SubscriptionAdmin />} />
-            <Route path="/challenges-admin" element={<ChallengesAdmin />} />
-            <Route path="/analytics-report" element={<AnalyticsReport />} />
-            <Route path="/community-admin" element={<CommunityAdmin />} />
-            <Route path="/store-admin" element={<StoreAdmin />} />
-          </Route>
-
-          {/* User Routes - Assuming 'user' role or any authenticated user */}
-          {/* For now keeping them public or just authenticated if needed, but per request focusing on Admin security */}
           <Route path="/onboarding-1" element={<OnboardingStep1 />} />
           <Route path="/onboarding-2" element={<OnboardingStep2 />} />
           <Route path="/onboarding-3" element={<OnboardingStep3 />} />
-          <Route path="/user-plan" element={<UserPlan />} />
-          <Route path="/user-nutrition" element={<UserNutrition />} />
-          <Route path="/user-progress" element={<UserProgress />} />
+          <Route path="/plan" element={<UserPlan />} />
+          <Route path="/nutrition" element={<UserNutrition />} />
+          <Route path="/progress" element={<UserProgress />} />
           <Route path="/routine" element={<RoutineInProgress />} />
-          <Route path="/library" element={<ExerciseLibrary />} />
           <Route path="/user-profile" element={<UserProfile user={userProfile} />} />
           <Route path="/community" element={<Community />} />
           <Route path="/store" element={<Store />} />
+
+          {/* Inject dark mode controls into screens that need it in header */}
+          <Route element={<ProtectedRoute allowedRoles={['superadmin']} />}>
+            <Route path="/superadmin" element={<SuperAdmin darkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={['admin', 'superadmin']} />}>
+            <Route path="/admin" element={<DashboardAdmin darkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
+            <Route path="/accounting-admin" element={<AccountingAdmin darkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
+            <Route path="/analytics-report" element={<AnalyticsReport darkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
+            <Route path="/challenges-admin" element={<ChallengesAdmin darkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
+            <Route path="/community-admin" element={<CommunityAdmin darkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
+            <Route path="/store-admin" element={<StoreAdmin darkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
+            <Route path="/subscription-admin" element={<SubscriptionAdmin darkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
+            <Route path="/brand-settings" element={<BrandSettings darkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
+          </Route>
 
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Suspense>
-      <button
-        onClick={toggleDarkMode}
-        className="fixed bottom-24 right-6 z-[999] size-14 rounded-[2rem] bg-primary text-background-dark shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group"
-        title={darkMode ? "Pasar a Modo Claro" : "Pasar a Modo Oscuro"}
-      >
-        <span className="material-symbols-outlined text-3xl font-black">
-          {darkMode ? 'light_mode' : 'dark_mode'}
-        </span>
-      </button>
-
-      <MobileNav />
+      <MobileNav darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
     </HashRouter>
   );
 };

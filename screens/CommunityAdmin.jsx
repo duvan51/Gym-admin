@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AdminSidebar from '../components/AdminSidebar';
 import { supabase } from '../services/supabaseClient';
 
-const CommunityAdmin = () => {
+const CommunityAdmin = ({ darkMode, toggleDarkMode }) => {
     const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [myProfile, setMyProfile] = useState(null);
@@ -216,26 +216,26 @@ const CommunityAdmin = () => {
     };
 
     return (
-        <div className="flex min-h-screen bg-background-dark text-white font-display">
-            <AdminSidebar />
+        <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-slate-800 dark:text-white font-display transition-colors">
+            <AdminSidebar darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
 
             <main className="flex-1 flex flex-col h-screen overflow-hidden">
-                <header className="px-10 py-8 border-b border-border-dark bg-surface-dark/50 backdrop-blur-md flex justify-between items-center shrink-0">
+                <header className="px-6 md:px-10 py-6 md:py-8 border-b border-border-light dark:border-border-dark bg-surface-light/30 dark:bg-surface-dark/30 backdrop-blur-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0 transition-colors">
                     <div>
-                        <h1 className="text-4xl font-black uppercase italic tracking-tighter">
+                        <h1 className="text-2xl md:text-4xl font-black uppercase italic tracking-tighter text-slate-800 dark:text-white">
                             Portal <span className="text-primary-blue">Moderador</span>
                         </h1>
-                        <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-1">Supervisión de comunidad y anuncios oficiales</p>
+                        <p className="text-slate-500 text-[10px] md:text-sm font-bold uppercase tracking-widest mt-1">Supervisión de comunidad y anuncios oficiales</p>
                     </div>
                     <div className="flex gap-4">
-                        <div className="bg-background-dark/50 px-6 py-2 rounded-2xl border border-border-dark">
-                            <span className="text-[10px] text-slate-500 font-bold uppercase block">Total</span>
-                            <span className="text-xl font-black text-primary-blue">{stats.total}</span>
+                        <div className="bg-black/5 dark:bg-background-dark/50 px-4 md:px-6 py-2 rounded-2xl border border-black/5 dark:border-white/5">
+                            <span className="text-[8px] md:text-[10px] text-slate-500 font-bold uppercase block">Total</span>
+                            <span className="text-lg md:text-xl font-black text-primary-blue">{stats.total}</span>
                         </div>
                     </div>
                 </header>
 
-                <div className="flex-1 p-10 overflow-y-auto custom-scrollbar">
+                <div className="flex-1 p-10 overflow-y-auto custom-scrollbar pb-32">
                     <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
                         {/* Feed y Creador */}
                         <div className="xl:col-span-8 space-y-8">
@@ -244,7 +244,7 @@ const CommunityAdmin = () => {
                             <section className="bg-primary-blue/5 border border-primary-blue/20 rounded-[2.5rem] p-8">
                                 <h3 className="text-xl font-black uppercase italic mb-4 text-primary-blue">Crear Comunicado Oficial</h3>
                                 <textarea
-                                    className="w-full bg-background-dark/50 border-2 border-primary-blue/10 rounded-2xl p-4 text-white placeholder:text-slate-600 focus:border-primary-blue transition-all outline-none h-24 mb-4"
+                                    className="w-full bg-surface-light dark:bg-background-dark/50 border-2 border-border-light dark:border-primary-blue/10 rounded-2xl p-4 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:border-primary-blue transition-all outline-none h-24 mb-4"
                                     placeholder="Escribe un anuncio para todos los socios..."
                                     value={newPostContent}
                                     onChange={(e) => setNewPostContent(e.target.value)}
@@ -277,7 +277,7 @@ const CommunityAdmin = () => {
                                 ) : posts.length === 0 ? (
                                     <div className="py-20 text-center">No hay publicaciones</div>
                                 ) : posts.map((post) => (
-                                    <article key={post.id} className={`bg-surface-dark border p-8 rounded-[2.5rem] flex flex-col gap-6 hover:border-primary-blue/30 transition-all ${post.is_priority ? 'border-primary-blue shadow-[0_0_30px_rgba(33,150,243,0.1)]' : 'border-border-dark'}`}>
+                                    <article key={post.id} className={`bg-surface-light dark:bg-surface-dark border p-8 rounded-[2.5rem] flex flex-col gap-6 hover:border-primary-blue/30 transition-all ${post.is_priority ? 'border-primary-blue shadow-[0_0_30px_rgba(33,150,243,0.1)]' : 'border-border-light dark:border-border-dark'}`}>
                                         <div className="flex justify-between items-start">
                                             <div className="flex items-center gap-4">
                                                 <div className={`size-12 rounded-full p-0.5 border-2 ${post.role === 'admin' ? 'border-primary-blue' : 'border-primary/20'}`}>
@@ -296,9 +296,9 @@ const CommunityAdmin = () => {
                                             </button>
                                         </div>
 
-                                        <p className="text-slate-300 text-lg leading-relaxed whitespace-pre-wrap">{post.content}</p>
+                                        <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed whitespace-pre-wrap">{post.content}</p>
 
-                                        <div className="flex items-center gap-6 pt-4 border-t border-white/5">
+                                        <div className="flex items-center gap-6 pt-4 border-t border-black/5 dark:border-white/5">
                                             <button
                                                 onClick={() => handleToggleLike(post.id, post.user_has_liked)}
                                                 className={`flex items-center gap-2 font-bold text-sm ${post.user_has_liked ? 'text-primary' : 'text-slate-500 hover:text-white'}`}
@@ -321,11 +321,11 @@ const CommunityAdmin = () => {
                                             <div className="mt-4 space-y-4 animate-fadeIn">
                                                 <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                                                     {activePostComments.list.map(c => (
-                                                        <div key={c.id} className="bg-background-dark/30 p-4 rounded-2xl flex gap-3">
+                                                        <div key={c.id} className="bg-black/5 dark:bg-background-dark/30 p-4 rounded-2xl flex gap-3">
                                                             <div className="size-8 rounded-full bg-cover bg-center shrink-0" style={{ backgroundImage: `url('${c.profiles?.avatar_url || 'https://i.pravatar.cc/150'}')` }}></div>
                                                             <div>
-                                                                <p className="text-xs font-black uppercase text-slate-400">{c.profiles?.full_name}</p>
-                                                                <p className="text-sm text-slate-200">{c.content}</p>
+                                                                <p className="text-xs font-black uppercase text-slate-500 dark:text-slate-400">{c.profiles?.full_name}</p>
+                                                                <p className="text-sm text-slate-600 dark:text-slate-200">{c.content}</p>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -333,7 +333,7 @@ const CommunityAdmin = () => {
                                                 <div className="flex gap-2">
                                                     <input
                                                         type="text"
-                                                        className="flex-1 bg-background-dark/50 border border-white/10 rounded-xl px-4 py-2 text-sm outline-none focus:border-primary-blue"
+                                                        className="flex-1 bg-surface-light dark:bg-background-dark/50 border border-border-light dark:border-white/10 rounded-xl px-4 py-2 text-sm text-slate-800 dark:text-white outline-none focus:border-primary-blue"
                                                         placeholder="Escribe un comentario..."
                                                         value={commentContent}
                                                         onChange={(e) => setCommentContent(e.target.value)}
@@ -352,15 +352,15 @@ const CommunityAdmin = () => {
 
                         {/* Sidebar */}
                         <div className="xl:col-span-4 space-y-8">
-                            <section className="bg-surface-dark border border-border-dark p-8 rounded-[2.5rem]">
+                            <section className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark p-8 rounded-[2.5rem]">
                                 <h3 className="text-xl font-black uppercase italic mb-6">Métricas de hoy</h3>
                                 <div className="space-y-4">
-                                    <div className="flex items-center justify-between p-4 rounded-2xl bg-background-dark/50 border border-white/5">
-                                        <span className="text-xs font-black uppercase tracking-widest text-slate-400">Posts Hoy</span>
+                                    <div className="flex items-center justify-between p-4 rounded-2xl bg-black/5 dark:bg-background-dark/50 border border-black/5 dark:border-white/5">
+                                        <span className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Posts Hoy</span>
                                         <span className="text-xl font-black text-primary">{stats.todays}</span>
                                     </div>
-                                    <div className="flex items-center justify-between p-4 rounded-2xl bg-background-dark/50 border border-white/5">
-                                        <span className="text-xs font-black uppercase tracking-widest text-slate-400">Favoritos</span>
+                                    <div className="flex items-center justify-between p-4 rounded-2xl bg-black/5 dark:bg-background-dark/50 border border-black/5 dark:border-white/5">
+                                        <span className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Favoritos</span>
                                         <span className="text-xl font-black text-primary-blue">
                                             {posts.reduce((acc, p) => acc + (p.likes || 0), 0)}
                                         </span>

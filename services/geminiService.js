@@ -33,22 +33,53 @@ const getAI = (area = 'workout') => {
 };
 
 /**
+ * Simple circuit breaker to skip AI calls if we are being rate-limited
+ */
+let isCircuitOpen = false;
+let circuitTimer = null;
+
+const openCircuit = (duration = 60000) => {
+  if (isCircuitOpen) return;
+  isCircuitOpen = true;
+  console.error(`Circuit Breaker: Rate limit exceeded. Pausing AI requests for ${duration/1000}s`);
+  
+  if (circuitTimer) clearTimeout(circuitTimer);
+  circuitTimer = setTimeout(() => {
+    isCircuitOpen = false;
+    console.log("Circuit Breaker: Retrying AI connectivity...");
+  }, duration);
+};
+
+/**
  * Helper to retry AI calls with exponential backoff on 429 errors
  */
 const withRetry = async (fn, maxRetries = 3) => {
+  if (isCircuitOpen) {
+    throw new Error('429: Rate limit cooldown active');
+  }
+
   let lastError;
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
     } catch (error) {
       lastError = error;
-      const isRateLimit = error.message?.includes('429') || error.status === 429 || error.code === 429;
-      if (isRateLimit && i < maxRetries - 1) {
-        // Reduced backoff for better UX: 2s, 4s, 8s
-        const delay = Math.pow(2, i) * 2000 + (Math.random() * 500); 
-        console.warn(`Gemini Rate Limit (429). Retrying in ${Math.round(delay)}ms... (Attempt ${i + 1}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
+      const isRateLimit = error.message?.includes('429') || 
+                          error.status === 429 || 
+                          error.code === 429 ||
+                          (error.response && error.response.status === 429);
+      
+      if (isRateLimit) {
+        if (i < maxRetries - 1) {
+          // Increase backoff: 3s, 8s, 15s
+          const delay = Math.pow(i + 1, 2) * 3000 + (Math.random() * 1000); 
+          console.warn(`Gemini Rate Limit (429). Retrying in ${Math.round(delay)}ms... (Attempt ${i + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        } else {
+          // If all retries fail, open the circuit breaker
+          openCircuit();
+        }
       }
       throw error;
     }
