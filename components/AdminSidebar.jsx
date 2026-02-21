@@ -55,7 +55,7 @@ const AdminSidebar = ({ darkMode, toggleDarkMode }) => {
                         {profile?.gyms?.avatar_url ? (
                             <img src={profile.gyms.avatar_url} alt="Gym Logo" className="w-full h-full object-cover" />
                         ) : (
-                            <span className="material-symbols-outlined text-primary text-xl">fitness_center</span>
+                            <img src="/andoGymLogo.png" alt="andoGym Logo" className="size-6 object-contain" />
                         )}
                     </div>
                     <span className="text-sm font-black uppercase italic tracking-tighter text-slate-800 dark:text-white transition-colors">{profile?.gyms?.name || 'Admin'}</span>
@@ -155,14 +155,14 @@ const AdminSidebar = ({ darkMode, toggleDarkMode }) => {
                             {profile?.gyms?.avatar_url ? (
                                 <img src={profile.gyms.avatar_url} alt="Gym Logo" className="w-full h-full object-cover" />
                             ) : (
-                                <span className="material-symbols-outlined text-primary text-2xl">fitness_center</span>
+                                <img src="/andoGymLogo.png" alt="andoGym Logo" className="size-8 object-contain" />
                             )}
                         </div>
                         <div className="flex flex-col min-w-0 flex-1">
                             {sidebarLoading ? (
                                 <div className="h-4 w-32 bg-black/10 dark:bg-white/10 rounded animate-pulse transition-colors"></div>
                             ) : (
-                                <h1 className="text-sm font-black leading-tight uppercase italic truncate text-slate-800 dark:text-white transition-colors">{profile?.gyms?.name || 'SaaS Admin'}</h1>
+                                <h1 className="text-sm font-black leading-tight uppercase italic truncate text-slate-800 dark:text-white transition-colors">{profile?.gyms?.name || 'andoGym Admin'}</h1>
                             )}
                             <p className="text-[10px] text-primary/60 uppercase tracking-[0.2em] font-black italic">Operaciones</p>
                         </div>

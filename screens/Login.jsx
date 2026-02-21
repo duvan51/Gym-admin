@@ -306,10 +306,10 @@ const Login = () => {
                     <>
                         <header className="flex flex-col items-center mb-16 text-center animate-fadeIn">
                             <div className="bg-primary/20 p-5 rounded-3xl mb-6 shadow-[0_0_50px_rgba(13,242,89,0.3)] border border-primary/30">
-                                <span className="material-symbols-outlined text-primary text-6xl">fitness_center</span>
+                                <img src="/andoGymLogo.png" alt="andoGym Logo" className="size-16 object-contain" />
                             </div>
                             <h1 className="text-6xl md:text-8xl font-black text-slate-900 dark:text-white tracking-tighter uppercase leading-none transition-colors">
-                                Desarrollando <span className="text-primary italic">ando</span>
+                                ando<span className="text-primary italic">Gym</span>
                             </h1>
                             <p className="text-slate-400 mt-6 text-xl font-medium tracking-widest uppercase opacity-70">
                                 Selecciona tu perfil de acceso
@@ -463,7 +463,7 @@ const Login = () => {
                 <footer className="mt-20 text-center">
                     <div className="h-px w-32 bg-gradient-to-r from-transparent via-primary/30 to-transparent mx-auto mb-10"></div>
                     <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">
-                        &copy; 2025 Desarrollando Ando Ecosystem. Propulsado por IA.
+                        &copy; 2026 andoGym. Propulsado por IA.
                     </p>
                 </footer>
             </div>

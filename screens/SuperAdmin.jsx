@@ -769,7 +769,7 @@ const SuperAdmin = ({ darkMode, toggleDarkMode }) => {
                         <span className="material-symbols-outlined text-primary-blue text-xl md:text-3xl font-black">admin_panel_settings</span>
                     </div>
                     <div>
-                        <h1 className="text-lg md:text-2xl font-black uppercase italic tracking-tighter">Admin <span className="text-primary-blue">Central</span></h1>
+                        <h1 className="text-lg md:text-2xl font-black uppercase italic tracking-tighter">andoGym <span className="text-primary-blue">Central</span></h1>
                         <p className="hidden md:block text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Gestión de Ecosistema SaaS</p>
                     </div>
                 </div>

@@ -1,6 +1,6 @@
 {
-    "name": "Gym Ecosystem",
-    "short_name": "GymEcos",
+    "name": "andoGym",
+    "short_name": "andoGym",
     "description": "Tu centro de entrenamiento y nutrición inteligente con IA.",
     "start_url": "/",
     "display": "standalone",
@@ -8,7 +8,7 @@
     "theme_color": "#0df259",
     "icons": [
         {
-            "src": "/logo.png",
+            "src": "/andoGymLogo.png",
             "sizes": "1024x1024",
             "type": "image/png",
             "purpose": "any maskable"
