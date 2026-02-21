@@ -193,6 +193,16 @@ const Login = () => {
             color: 'slate-400',
             path: '/superadmin',
             image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=60&w=800&auto=format&fit=crop'
+        },
+        {
+            id: 'agent',
+            title: 'Agente Ventas',
+            subtitle: 'COMISIONES',
+            desc: 'Seguimiento de referidos, cálculo de comisiones y panel de prospección.',
+            icon: 'support_agent',
+            color: 'primary-blue',
+            path: '/agent-dashboard',
+            image: 'https://images.unsplash.com/photo-1556745753-b2904692b3cd?q=60&w=800&auto=format&fit=crop'
         }
     ];
 
@@ -316,7 +326,7 @@ const Login = () => {
                             </p>
                         </header>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                             {sectors.map((sector, index) => (
                                 <div
                                     key={sector.id}

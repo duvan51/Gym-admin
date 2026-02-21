@@ -101,6 +101,10 @@ const App = () => {
             <Route path="/brand-settings" element={<BrandSettings darkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
           </Route>
 
+          <Route element={<ProtectedRoute allowedRoles={['agent']} />}>
+            <Route path="/agent-dashboard" element={<AgentDashboard />} />
+          </Route>
+
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
