@@ -30,10 +30,10 @@ const SubscriptionAdmin = lazy(() => import('./screens/SubscriptionAdmin'));
 import ProtectedRoute from './components/ProtectedRoute'; // Static import for High Order Component
 
 const PageLoader = () => (
-  <div className="min-h-screen bg-background-dark flex items-center justify-center">
+  <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center transition-colors">
     <div className="flex flex-col items-center">
       <div className="size-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4"></div>
-      <div className="h-2 w-32 bg-white/5 rounded-full overflow-hidden">
+      <div className="h-2 w-32 bg-black/5 dark:bg-white/5 rounded-full overflow-hidden transition-colors">
         <div className="h-full bg-primary animate-[shimmer_1.5s_infinite] w-full origin-left"></div>
       </div>
     </div>
@@ -71,7 +71,7 @@ const App = () => {
     <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={<Login darkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
           <Route path="/onboarding-1" element={<OnboardingStep1 />} />

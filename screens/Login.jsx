@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 
-const Login = () => {
+const Login = ({ darkMode, toggleDarkMode }) => {
     const navigate = useNavigate();
     const [selectedSector, setSelectedSector] = useState(null);
     const [showLoginForm, setShowLoginForm] = useState(false);
@@ -307,6 +307,19 @@ const Login = () => {
 
     return (
         <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col items-center justify-center p-6 relative overflow-hidden font-display selection:bg-primary selection:text-black transition-colors">
+            {/* Theme Toggle Floating Button */}
+            <div className="absolute top-8 right-8 z-[100] animate-fadeIn">
+                <button
+                    onClick={toggleDarkMode}
+                    className="p-3 rounded-2xl bg-white dark:bg-surface-dark border border-black/5 dark:border-white/10 shadow-xl dark:shadow-none text-slate-500 hover:text-primary transition-all active:scale-95 flex items-center justify-center group"
+                    title={darkMode ? "Modo Claro" : "Modo Oscuro"}
+                >
+                    <span className="material-symbols-outlined text-2xl group-hover:rotate-12 transition-transform">
+                        {darkMode ? 'light_mode' : 'dark_mode'}
+                    </span>
+                </button>
+            </div>
+
             {/* Background elements */}
             <div className="absolute top-[-15%] right-[-10%] size-[600px] bg-primary/10 blur-[140px] rounded-full animate-pulse"></div>
             <div className="absolute bottom-[-15%] left-[-10%] size-[600px] bg-primary-blue/10 blur-[140px] rounded-full animate-pulse" style={{ animationDelay: '2s' }}></div>
@@ -338,7 +351,7 @@ const Login = () => {
                                         className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 group-hover:scale-110"
                                         style={{ backgroundImage: `url('${sector.image}')` }}
                                     ></div>
-                                    <div className="absolute inset-0 bg-gradient-to-t from-background-light/90 dark:from-background-dark/95 via-background-light/40 dark:via-background-dark/80 to-transparent transition-colors"></div>
+                                    <div className="absolute inset-0 bg-gradient-to-t from-background-light/95 dark:from-background-dark/95 via-background-light/60 dark:via-background-dark/80 to-transparent transition-colors"></div>
 
                                     <div className="absolute top-8 left-8 p-3 rounded-2xl bg-black/5 dark:bg-white/10 backdrop-blur-md border border-black/10 dark:border-white/20 transition-colors">
                                         <span className="material-symbols-outlined text-slate-900 dark:text-white text-2xl group-hover:text-primary transition-colors">{sector.icon}</span>
