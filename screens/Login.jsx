@@ -206,6 +206,9 @@ const Login = ({ darkMode, toggleDarkMode }) => {
         }
     ];
 
+    const athleteSector = sectors.find(s => s.id === 'user');
+    const footerSectors = sectors.filter(s => s.id !== 'user');
+
     const handleSectorSelect = (sector) => {
         setSelectedSector(sector);
         localStorage.setItem('preferred_sector', JSON.stringify(sector));
@@ -339,43 +342,39 @@ const Login = ({ darkMode, toggleDarkMode }) => {
                             </p>
                         </header>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                            {sectors.map((sector, index) => (
+                        <div className="flex justify-center">
+                            <div
+                                onClick={() => handleSectorSelect(athleteSector)}
+                                className="group relative w-full max-w-2xl h-[550px] bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-[3rem] overflow-hidden cursor-pointer transition-all duration-700 hover:border-primary/50 hover:-translate-y-4 hover:shadow-[0_40px_80px_rgba(0,0,0,0.15)] dark:hover:shadow-[0_40px_80px_rgba(0,0,0,1)] animate-fadeInUp shadow-2xl"
+                            >
                                 <div
-                                    key={sector.id}
-                                    onClick={() => handleSectorSelect(sector)}
-                                    className="group relative h-[480px] bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-[2.5rem] overflow-hidden cursor-pointer transition-all duration-500 hover:border-primary/50 hover:-translate-y-4 hover:shadow-[0_30px_60px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_30px_60px_rgba(0,0,0,0.8)] animate-fadeInUp"
-                                    style={{ animationDelay: `${index * 0.1}s` }}
-                                >
-                                    <div
-                                        className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 group-hover:scale-110"
-                                        style={{ backgroundImage: `url('${sector.image}')` }}
-                                    ></div>
-                                    <div className="absolute inset-0 bg-gradient-to-t from-background-light/95 dark:from-background-dark/95 via-background-light/60 dark:via-background-dark/80 to-transparent transition-colors"></div>
+                                    className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 group-hover:scale-110"
+                                    style={{ backgroundImage: `url('${athleteSector.image}')` }}
+                                ></div>
+                                <div className="absolute inset-0 bg-gradient-to-t from-background-light/95 dark:from-background-dark/95 via-background-light/60 dark:via-background-dark/80 to-transparent transition-colors"></div>
 
-                                    <div className="absolute top-8 left-8 p-3 rounded-2xl bg-black/5 dark:bg-white/10 backdrop-blur-md border border-black/10 dark:border-white/20 transition-colors">
-                                        <span className="material-symbols-outlined text-slate-900 dark:text-white text-2xl group-hover:text-primary transition-colors">{sector.icon}</span>
+                                <div className="absolute top-10 left-10 p-4 rounded-2xl bg-black/5 dark:bg-white/10 backdrop-blur-md border border-black/10 dark:border-white/20 transition-colors">
+                                    <span className="material-symbols-outlined text-slate-900 dark:text-white text-3xl group-hover:text-primary transition-colors">{athleteSector.icon}</span>
+                                </div>
+
+                                <div className="absolute inset-0 p-12 flex flex-col justify-end">
+                                    <div className="mb-6">
+                                        <span className={`text-xs font-black tracking-[0.4em] uppercase px-6 py-2 rounded-full bg-black/5 dark:bg-white/10 text-slate-900 dark:text-white border border-black/10 dark:border-white/20 backdrop-blur-sm transition-colors`}>
+                                            {athleteSector.subtitle}
+                                        </span>
                                     </div>
+                                    <h3 className="text-5xl md:text-7xl font-black text-slate-900 dark:text-white uppercase italic leading-tight group-hover:text-primary transition-colors duration-300">
+                                        {athleteSector.title}
+                                    </h3>
+                                    <p className="text-slate-600 dark:text-slate-300 text-lg md:text-xl leading-relaxed mt-6 opacity-80 group-hover:opacity-100 transition-opacity duration-300 max-w-xl">
+                                        {athleteSector.desc}
+                                    </p>
 
-                                    <div className="absolute inset-0 p-10 flex flex-col justify-end">
-                                        <div className="mb-4">
-                                            <span className={`text-[10px] font-black tracking-[0.3em] uppercase px-4 py-1.5 rounded-full bg-black/5 dark:bg-white/10 text-slate-900 dark:text-white border border-black/10 dark:border-white/20 backdrop-blur-sm transition-colors`}>
-                                                {sector.subtitle}
-                                            </span>
-                                        </div>
-                                        <h3 className="text-4xl font-black text-slate-900 dark:text-white uppercase italic leading-tight group-hover:text-primary transition-colors duration-300">
-                                            {sector.title}
-                                        </h3>
-                                        <p className="text-slate-600 dark:text-slate-300 text-base leading-relaxed mt-4 opacity-80 group-hover:opacity-100 transition-opacity duration-300">
-                                            {sector.desc}
-                                        </p>
-
-                                        <div className="mt-8 flex items-center gap-3 text-primary font-black text-xs uppercase tracking-widest translate-y-6 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">
-                                            Entrar al Portal <span className="material-symbols-outlined text-sm font-black">arrow_right_alt</span>
-                                        </div>
+                                    <div className="mt-10 flex items-center gap-4 text-primary font-black text-sm uppercase tracking-widest translate-y-6 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">
+                                        Entrar al Ecosistema <span className="material-symbols-outlined text-xl font-black">arrow_right_alt</span>
                                     </div>
                                 </div>
-                            ))}
+                            </div>
                         </div>
                     </>
                 ) : (
@@ -483,9 +482,27 @@ const Login = ({ darkMode, toggleDarkMode }) => {
                     </div>
                 )}
 
-                <footer className="mt-20 text-center">
+                <footer className="mt-20 text-center animate-fadeInUp" style={{ animationDelay: '0.4s' }}>
+                    {!showLoginForm && (
+                        <div className="mb-20">
+                            <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mb-8 opacity-50">Otras Áreas del Sistema</h4>
+                            <div className="flex flex-wrap justify-center gap-6">
+                                {footerSectors.map((sector) => (
+                                    <button
+                                        key={sector.id}
+                                        onClick={() => handleSectorSelect(sector)}
+                                        className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-black/5 dark:bg-white/5 border border-border-light dark:border-border-dark hover:border-primary/50 transition-all group"
+                                    >
+                                        <span className="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">{sector.icon}</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{sector.title}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="h-px w-32 bg-gradient-to-r from-transparent via-primary/30 to-transparent mx-auto mb-10"></div>
-                    <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">
+                    <p className="text-slate-500 text-sm font-bold uppercase tracking-widest transition-colors">
                         &copy; 2026 andoGym. Propulsado por IA.
                     </p>
                 </footer>
