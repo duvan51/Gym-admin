@@ -70,7 +70,7 @@ const Login = () => {
                 setDiagMsg(`Sincronizando: ${session.user.email}...`);
 
                 // Fetch profile with direct query
-                const { data: profile, error: profileError } = await supabase
+                let { data: profile, error: profileError } = await supabase
                     .from('profiles')
                     .select('role, activity_level')
                     .eq('id', session.user.id)
