@@ -444,27 +444,23 @@ const Login = ({ darkMode, toggleDarkMode }) => {
                                 <span className="material-symbols-outlined">{loading ? 'sync' : 'login'}</span>
                             </button>
 
-                            {!showLoginForm && (
-                                <>
-                                    <div className="relative py-4">
-                                        <div className="absolute inset-0 flex items-center text-slate-200 dark:text-slate-800 transition-colors">
-                                            <div className="w-full border-t border-current"></div>
-                                        </div>
-                                        <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest">
-                                            <span className="bg-background-light dark:bg-background-dark px-4 text-slate-500 transition-colors">O continuar con</span>
-                                        </div>
-                                    </div>
+                            <div className="relative py-4">
+                                <div className="absolute inset-0 flex items-center text-slate-200 dark:text-slate-800 transition-colors">
+                                    <div className="w-full border-t border-current"></div>
+                                </div>
+                                <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest">
+                                    <span className="bg-background-light dark:bg-background-dark px-4 text-slate-500 transition-colors">O continuar con</span>
+                                </div>
+                            </div>
 
-                                    <button
-                                        type="button"
-                                        onClick={handleGoogleLogin}
-                                        className="w-full bg-white dark:bg-white/5 border border-border-light dark:border-white/10 text-slate-900 dark:text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-50 dark:hover:bg-white/10 transition-all uppercase tracking-widest text-xs shadow-sm dark:shadow-none transition-colors"
-                                    >
-                                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="size-5" alt="Google" />
-                                        Google Account
-                                    </button>
-                                </>
-                            )}
+                            <button
+                                type="button"
+                                onClick={handleGoogleLogin}
+                                className="w-full bg-white dark:bg-white/5 border border-border-light dark:border-white/10 text-slate-900 dark:text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-50 dark:hover:bg-white/10 transition-all uppercase tracking-widest text-xs shadow-sm dark:shadow-none transition-colors"
+                            >
+                                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="size-5" alt="Google" />
+                                Google Account
+                            </button>
                         </form>
 
                         {!showLoginForm && (
