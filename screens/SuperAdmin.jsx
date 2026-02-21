@@ -804,9 +804,15 @@ const SuperAdmin = ({ darkMode, toggleDarkMode }) => {
                             {darkMode ? 'light_mode' : 'dark_mode'}
                         </span>
                     </button>
-                    <Link to="/login" className="flex items-center gap-2 text-slate-500 hover:text-red-500 transition-colors font-black uppercase text-[10px] tracking-widest pl-2 border-l border-black/10 dark:border-white/10">
+                    <button
+                        onClick={async () => {
+                            await supabase.auth.signOut();
+                            window.location.href = '#/login';
+                        }}
+                        className="flex items-center gap-2 text-slate-500 hover:text-red-500 transition-colors font-black uppercase text-[10px] tracking-widest pl-2 border-l border-black/10 dark:border-white/10 bg-transparent border-none cursor-pointer"
+                    >
                         <span className="hidden md:inline">Cerrar Sesión</span> <span className="material-symbols-outlined text-sm">logout</span>
-                    </Link>
+                    </button>
                 </div>
             </header>
 

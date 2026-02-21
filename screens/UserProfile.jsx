@@ -74,7 +74,8 @@ const UserProfile = () => {
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
-        navigate('/login');
+        window.location.href = '#/login';
+        window.location.reload();
     };
 
     const handleStripePayment = async (plan) => {

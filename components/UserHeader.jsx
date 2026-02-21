@@ -112,7 +112,8 @@ const UserHeader = () => {
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
-        navigate('/login');
+        window.location.href = '#/login';
+        window.location.reload();
     };
 
     return (
