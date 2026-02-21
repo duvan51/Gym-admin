@@ -345,16 +345,36 @@ const Login = ({ darkMode, toggleDarkMode }) => {
 
             <div className="z-10 w-full min-h-screen flex flex-col md:flex-row">
                 {/* Left Side: Login Form */}
-                <div className="w-full md:w-[45%] p-8 md:p-16 flex flex-col justify-center animate-fadeIn">
-                    <div className="mb-12">
-                        <div className="bg-primary/20 p-4 rounded-2xl mb-6 inline-block shadow-[0_0_40px_rgba(13,242,89,0.2)] border border-primary/20">
-                            <img src="/andoGymLogo.png" alt="andoGym Logo" className="size-12 object-contain" />
-                        </div>
+                {/* Left Side: Login Form */}
+                <div className="w-full md:w-[45%] p-8 md:p-16 flex flex-col justify-center animate-fadeIn min-h-screen">
+                    <div className="mb-10">
+                        {showLoginForm && selectedSector ? (
+                            <button
+                                onClick={() => { setShowLoginForm(false); setSelectedSector(null); setError(null); }}
+                                className="flex items-center gap-2 text-slate-400 hover:text-primary mb-8 transition-colors group uppercase text-[10px] font-black tracking-widest bg-transparent border-none cursor-pointer"
+                            >
+                                <span className="material-symbols-outlined text-sm">arrow_back</span>
+                                Volver al Ecosistema Atleta
+                            </button>
+                        ) : (
+                            <div className="bg-primary/20 p-4 rounded-2xl mb-6 inline-block shadow-[0_0_40px_rgba(13,242,89,0.2)] border border-primary/20">
+                                <img src="/andoGymLogo.png" alt="andoGym Logo" className="size-12 object-contain" />
+                            </div>
+                        )}
+
                         <h1 className="text-5xl md:text-7xl font-black text-slate-900 dark:text-white tracking-tighter uppercase leading-none transition-colors">
-                            ando<span className="text-primary italic">Gym</span>
+                            {showLoginForm && selectedSector ? (
+                                <>Login <span className="text-primary-blue italic">{selectedSector.title}</span></>
+                            ) : (
+                                <>ando<span className="text-primary italic">Gym</span></>
+                            )}
                         </h1>
                         <p className="text-slate-400 mt-4 text-sm font-bold tracking-widest uppercase opacity-70">
-                            Acceso al Ecosistema Atleta
+                            {showLoginForm && selectedSector ? (
+                                `Acceso exclusivo: ${selectedSector.subtitle}`
+                            ) : (
+                                'Acceso al Ecosistema Atleta'
+                            )}
                         </p>
                     </div>
 
@@ -368,16 +388,20 @@ const Login = ({ darkMode, toggleDarkMode }) => {
 
                         <form onSubmit={handleLoginSubmit} className="space-y-6">
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1 transition-colors">Email / Usuario</label>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1 transition-colors">
+                                    {showLoginForm && selectedSector ? 'Email Corporativo' : 'Email / Usuario'}
+                                </label>
                                 <div className="relative group">
-                                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors">alternate_email</span>
+                                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors">
+                                        {showLoginForm && selectedSector ? 'badge' : 'alternate_email'}
+                                    </span>
                                     <input
                                         type="email"
                                         required
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        placeholder="atleta@andogym.com"
-                                        className="w-full bg-black/5 dark:bg-background-dark/50 border-2 border-border-light dark:border-border-dark rounded-2xl py-4 pl-12 pr-4 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:border-primary focus:ring-0 transition-all outline-none transition-colors"
+                                        placeholder={showLoginForm && selectedSector ? "staff@andogym.com" : "atleta@andogym.com"}
+                                        className={`w-full bg-black/5 dark:bg-background-dark/50 border-2 border-border-light dark:border-border-dark rounded-2xl py-4 pl-12 pr-4 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:ring-0 transition-all outline-none transition-colors ${showLoginForm && selectedSector ? 'focus:border-primary-blue' : 'focus:border-primary'}`}
                                     />
                                 </div>
                             </div>
@@ -392,20 +416,20 @@ const Login = ({ darkMode, toggleDarkMode }) => {
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         placeholder="••••••••"
-                                        className="w-full bg-black/5 dark:bg-background-dark/50 border-2 border-border-light dark:border-border-dark rounded-2xl py-4 pl-12 pr-4 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:border-primary focus:ring-0 transition-all outline-none transition-colors"
+                                        className={`w-full bg-black/5 dark:bg-background-dark/50 border-2 border-border-light dark:border-border-dark rounded-2xl py-4 pl-12 pr-4 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:ring-0 transition-all outline-none transition-colors ${showLoginForm && selectedSector ? 'focus:border-primary-blue' : 'focus:border-primary'}`}
                                     />
                                 </div>
                             </div>
 
                             <div className="flex items-center justify-between text-xs font-bold px-1">
                                 <label className="flex items-center gap-2 text-slate-400 cursor-pointer">
-                                    <input type="checkbox" className="rounded border-border-dark bg-background-dark text-primary focus:ring-0" />
+                                    <input type="checkbox" className={`rounded border-border-dark bg-background-dark text-primary focus:ring-0 ${showLoginForm && selectedSector ? 'accent-primary-blue' : 'accent-primary'}`} />
                                     Recordarme
                                 </label>
                                 <button
                                     type="button"
                                     onClick={handleForgotPassword}
-                                    className="text-primary hover:underline bg-transparent border-none cursor-pointer font-bold"
+                                    className={`${showLoginForm && selectedSector ? 'text-primary-blue' : 'text-primary'} hover:underline bg-transparent border-none cursor-pointer font-bold transition-colors`}
                                 >
                                     ¿Olvidaste tu acceso?
                                 </button>
@@ -414,47 +438,53 @@ const Login = ({ darkMode, toggleDarkMode }) => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full bg-primary text-background-dark font-black py-4 rounded-2xl uppercase tracking-widest text-sm hover:shadow-[0_0_30px_rgba(13,242,89,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className={`w-full text-white md:text-background-dark font-black py-4 rounded-2xl uppercase tracking-widest text-sm transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${showLoginForm && selectedSector ? 'bg-primary-blue hover:shadow-[0_0_30px_rgba(25,127,230,0.4)] text-white' : 'bg-primary hover:shadow-[0_0_30px_rgba(13,242,89,0.4)]'}`}
                             >
-                                {loading ? 'Verificando...' : 'Iniciar Sesión'}
+                                {loading ? 'Verificando...' : (showLoginForm && selectedSector ? 'Portal Administrativo' : 'Iniciar Sesión')}
                                 <span className="material-symbols-outlined">{loading ? 'sync' : 'login'}</span>
                             </button>
 
-                            <div className="relative py-4">
-                                <div className="absolute inset-0 flex items-center text-slate-200 dark:text-slate-800 transition-colors">
-                                    <div className="w-full border-t border-current"></div>
-                                </div>
-                                <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest">
-                                    <span className="bg-background-light dark:bg-background-dark px-4 text-slate-500 transition-colors">O continuar con</span>
-                                </div>
-                            </div>
+                            {!showLoginForm && (
+                                <>
+                                    <div className="relative py-4">
+                                        <div className="absolute inset-0 flex items-center text-slate-200 dark:text-slate-800 transition-colors">
+                                            <div className="w-full border-t border-current"></div>
+                                        </div>
+                                        <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest">
+                                            <span className="bg-background-light dark:bg-background-dark px-4 text-slate-500 transition-colors">O continuar con</span>
+                                        </div>
+                                    </div>
 
-                            <button
-                                type="button"
-                                onClick={handleGoogleLogin}
-                                className="w-full bg-white dark:bg-white/5 border border-border-light dark:border-white/10 text-slate-900 dark:text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-50 dark:hover:bg-white/10 transition-all uppercase tracking-widest text-xs shadow-sm dark:shadow-none transition-colors"
-                            >
-                                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="size-5" alt="Google" />
-                                Google Account
-                            </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleGoogleLogin}
+                                        className="w-full bg-white dark:bg-white/5 border border-border-light dark:border-white/10 text-slate-900 dark:text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-50 dark:hover:bg-white/10 transition-all uppercase tracking-widest text-xs shadow-sm dark:shadow-none transition-colors"
+                                    >
+                                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="size-5" alt="Google" />
+                                        Google Account
+                                    </button>
+                                </>
+                            )}
                         </form>
 
-                        <div className="mt-16 pt-10 border-t border-border-light dark:border-border-dark transition-colors">
-                            <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 mb-6 opacity-50">Otros Accesos</h4>
-                            <div className="flex flex-wrap gap-4">
-                                {footerSectors.map((sector) => (
-                                    <button
-                                        key={sector.id}
-                                        onClick={() => handleSectorSelect(sector)}
-                                        className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-black/5 dark:bg-white/5 border border-border-light dark:border-border-dark hover:border-primary/50 transition-all group scale-90 origin-left"
-                                        title={sector.title}
-                                    >
-                                        <span className="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors text-lg">{sector.icon}</span>
-                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{sector.title}</span>
-                                    </button>
-                                ))}
+                        {!showLoginForm && (
+                            <div className="mt-16 pt-10 border-t border-border-light dark:border-border-dark transition-colors">
+                                <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 mb-6 opacity-50">Otros Accesos</h4>
+                                <div className="flex flex-wrap gap-4">
+                                    {footerSectors.map((sector) => (
+                                        <button
+                                            key={sector.id}
+                                            onClick={() => handleSectorSelect(sector)}
+                                            className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-black/5 dark:bg-white/5 border border-border-light dark:border-border-dark hover:border-primary-blue/50 transition-all group scale-90 origin-left cursor-pointer"
+                                            title={sector.title}
+                                        >
+                                            <span className="material-symbols-outlined text-slate-400 group-hover:text-primary-blue transition-colors text-lg">{sector.icon}</span>
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{sector.title}</span>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     <footer className="mt-12 text-center md:text-left">
@@ -500,55 +530,6 @@ const Login = ({ darkMode, toggleDarkMode }) => {
                             </div>
                         </div>
                     </div>
-
-                    {/* Login Modal for other sectors */}
-                    {showLoginForm && selectedSector && (
-                        <div className="absolute inset-0 z-[100] flex items-center justify-center p-12 animate-fadeIn bg-background-dark/80 backdrop-blur-xl">
-                            <div className="bg-surface-dark border border-white/10 p-12 rounded-[3rem] w-full max-w-md shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
-                                <button
-                                    onClick={() => { setShowLoginForm(false); setSelectedSector(null); }}
-                                    className="flex items-center gap-2 text-slate-400 hover:text-primary mb-8 transition-colors uppercase text-[10px] font-black tracking-widest bg-transparent border-none cursor-pointer"
-                                >
-                                    <span className="material-symbols-outlined text-sm">arrow_back</span>
-                                    Cerrar Panel
-                                </button>
-
-                                <header className="mb-10">
-                                    <span className="bg-primary-blue/20 text-primary-blue px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-primary-blue/20 mb-4 inline-block">
-                                        {selectedSector.subtitle}
-                                    </span>
-                                    <h2 className="text-4xl font-black text-white uppercase italic tracking-tight">
-                                        Login <span className="text-primary-blue">{selectedSector.title}</span>
-                                    </h2>
-                                </header>
-
-                                <form onSubmit={handleLoginSubmit} className="space-y-6">
-                                    <input
-                                        type="email"
-                                        required
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        placeholder="email@corporativo.com"
-                                        className="w-full bg-white/5 border-2 border-white/5 rounded-2xl py-4 px-6 text-white focus:border-primary-blue outline-none transition-all"
-                                    />
-                                    <input
-                                        type="password"
-                                        required
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        placeholder="••••••••"
-                                        className="w-full bg-white/5 border-2 border-white/5 rounded-2xl py-4 px-6 text-white focus:border-primary-blue outline-none transition-all"
-                                    />
-                                    <button
-                                        type="submit"
-                                        className="w-full bg-primary-blue text-white font-black py-4 rounded-2xl uppercase tracking-widest text-sm hover:shadow-primary-blue/20 transition-all cursor-pointer"
-                                    >
-                                        Acceder Ahora
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>
