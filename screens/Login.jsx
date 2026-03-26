@@ -111,7 +111,7 @@ const Login = ({ darkMode, toggleDarkMode }) => {
                 if (role === 'superadmin') targetPath = '/superadmin';
                 else if (role === 'admin') targetPath = '/admin';
                 else if (role === 'agent') targetPath = '/agent-dashboard';
-                else targetPath = profile.activity_level ? '/user-plan' : '/onboarding-1';
+                else targetPath = profile.activity_level ? '/plan' : '/onboarding-1';
 
                 // Navigation Logic
                 if (targetPath) {

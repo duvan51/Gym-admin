@@ -85,9 +85,8 @@ const OnboardingStep3 = () => {
 
             if (histError) throw histError;
 
-            // 4. Generate Annual Workout & Nutrition Plan with AI
-            alert("✨ Generando tu ecosistema personalizado con IA (Entrenamiento + Nutrición)...\n\nEsto puede tomar 30-40 segundos.");
-
+            // 4. Generate Annual Workout & Nutrition Plan with AI (Background)
+            // No alert to prevent blocking the user
             const userProfile = {
                 activity_level: activityLevel,
                 fitness_goals: fitnessGoals,
@@ -102,17 +101,19 @@ const OnboardingStep3 = () => {
                 }
             };
 
-            const planResult = await createAnnualWorkoutPlan(userProfile, user.id);
-
-            console.log(`Workout Plan created: ${planResult.sessionsCount} sessions`);
+            createAnnualWorkoutPlan(userProfile, user.id)
+                .then(planResult => {
+                    console.log(`Workout Plan created in background: ${planResult.sessionsCount} sessions`);
+                })
+                .catch(err => {
+                    console.error("Background Generation Error:", err);
+                });
 
             // Cleanup
             localStorage.removeItem('onboarding_activity_level');
             localStorage.removeItem('onboarding_fitness_goals');
 
-            alert(`🎉 ¡Ecosistema generado exitosamente!\n\n${planResult.sessionsCount} sesiones de entrenamiento personalizadas están listas.`);
-
-            navigate('/user-plan');
+            navigate('/plan');
         } catch (err) {
             console.error(err);
             alert("Error al guardar perfil: " + err.message);

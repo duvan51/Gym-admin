@@ -16,6 +16,7 @@ const UserPlan = () => {
     const [nutritionPreview, setNutritionPreview] = useState({ today: null, tomorrow: null });
     const [biometrics, setBiometrics] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     // Cálculos de vencimiento
     const [daysToExpiry, setDaysToExpiry] = useState(null);
@@ -200,9 +201,21 @@ const UserPlan = () => {
             }
         };
         fetchUserDataAndPlan();
-    }, [navigate]);
+    }, [navigate, refreshKey]);
 
-    if (loading) {
+    useEffect(() => {
+        let interval;
+        if (!loading && !plan) {
+            interval = setInterval(() => {
+                setRefreshKey(prev => prev + 1);
+            }, 6000);
+        }
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [loading, plan]);
+
+    if (loading && refreshKey === 0) {
         return (
             <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col items-center justify-center font-display transition-colors">
                 <div className="relative">

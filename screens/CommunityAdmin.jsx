@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminSidebar from '../components/AdminSidebar';
 import { supabase } from '../services/supabaseClient';
+import { notificationService } from '../services/notificationService';
 
 const CommunityAdmin = ({ darkMode, toggleDarkMode }) => {
     const [posts, setPosts] = useState([]);
@@ -114,7 +115,7 @@ const CommunityAdmin = ({ darkMode, toggleDarkMode }) => {
         if (!newPostContent.trim() || !myProfile) return;
         setIsPosting(true);
         try {
-            const { error } = await supabase
+            const { data: newPost, error } = await supabase
                 .from('community_posts')
                 .insert([{
                     user_id: myProfile.id,
@@ -122,11 +123,26 @@ const CommunityAdmin = ({ darkMode, toggleDarkMode }) => {
                     tag: 'Anuncio',
                     is_priority: isPriority,
                     gym_id: myProfile.gym_id
-                }]);
+                }])
+                .select()
+                .single();
 
             if (error) {
                 console.error("Announcement Error:", error);
                 throw error;
+            }
+
+            if (newPost && myProfile?.gym_id) {
+                await notificationService.notifyGymMembers(
+                    myProfile.gym_id,
+                    myProfile.id,
+                    {
+                        title: isPriority ? "📢 Anuncio Importante" : "💬 Nuevo Comunicado",
+                        message: newPostContent.length > 50 ? newPostContent.substring(0, 50) + "..." : newPostContent,
+                        type: "community_post",
+                        relatedId: newPost.id
+                    }
+                );
             }
 
             // Artificial delay to let DB update
